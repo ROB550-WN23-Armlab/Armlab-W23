@@ -37,6 +37,7 @@ class StateMachine():
             [0.75*np.pi/2,   -0.5,     -0.3,     0.0,       np.pi/2],
             [np.pi/2,         0.5,     0.3,      0.0,     0.0],
             [0.0,             0.0,     0.0,      0.0,     0.0]]
+        self.current_waypoint = -1
 
     def set_next_state(self, state):
         """!
@@ -91,7 +92,7 @@ class StateMachine():
         """!
         @brief      Do nothing
         """
-        self.status_message = "State: Idle - Waiting for input"
+        self.status_message = "State: Idle - Waiting for input hi"
         self.current_state = "idle"
 
     def estop(self):
@@ -108,8 +109,15 @@ class StateMachine():
         TODO: Implement this function to execute a waypoint plan
               Make sure you respect estop signal
         """
+        
         self.status_message = "State: Execute - Executing motion plan"
-        self.next_state = "idle"
+        self.current_state="execute"
+        joint_errors = np.array(self.waypoints[self.current_waypoint]) - np.array(self.rxarm.get_positions())
+        if (np.sqrt(np.mean(joint_errors**2)) < 0.1) or (self.current_waypoint < 0):
+            self.current_waypoint = self.current_waypoint + 1
+            self.rxarm.set_positions(self.waypoints[self.current_waypoint])
+        if self.current_waypoint == len(self.waypoints)-1:
+            self.next_state = "idle"
 
     def calibrate(self):
         """!
