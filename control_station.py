@@ -96,6 +96,19 @@ class Gui(QMainWindow):
         self.ui.btnUser3.clicked.connect(lambda: self.rxarm.close_gripper())
         self.ui.btnUser4.setText('Execute')
         self.ui.btnUser4.clicked.connect(partial(nxt_if_arm_init, 'execute'))
+        
+        
+        self.ui.btnUser5.setText('Add Waypoint Closed Gripper')
+        self.ui.btnUser5.clicked.connect(partial(nxt_if_arm_init, 'save_waypoint_close'))
+
+        self.ui.btnUser6.setText('Add Waypoint Open Gripper')
+        self.ui.btnUser6.clicked.connect(partial(nxt_if_arm_init, 'save_waypoint_open'))
+
+        self.ui.btnUser7.setText('Clear All Waypoints')
+        self.ui.btnUser7.clicked.connect(partial(nxt_if_arm_init, 'clear_waypoints'))
+
+
+
 
         # Sliders
         for sldr in self.joint_sliders:
