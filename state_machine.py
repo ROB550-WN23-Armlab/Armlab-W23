@@ -6,6 +6,7 @@ import time
 import numpy as np
 import rospy
 
+
 class StateMachine():
     """!
     @brief      This class describes a state machine.
@@ -38,7 +39,11 @@ class StateMachine():
             [np.pi/2,         0.5,     0.3,      0.0,     0.0],
             [0.0,             0.0,     0.0,      0.0,     0.0]]
         self.current_waypoint = -1
-        self.waypoint_grip = [0,1,0,1,0,1,0,1,0,1] #Read 1 as closed and 0 as open
+        self.waypoint_grip = [0,0,0,0,0,0,0,0,0,0] #Read 1 as closed and 0 as open
+        self.err = 0
+        self.thresh = 0.05
+        self.long_time = 0
+        self.record = 0
 
     def set_next_state(self, state):
         """!
@@ -85,8 +90,11 @@ class StateMachine():
         if self.next_state == "save_waypoint_open":
             self.save_waypoint_open()
 
-        if self.next_State == "clear_waypoints":
+        if self.next_state == "clear_waypoints":
             self.clear_waypoints()
+
+        if self.next_state == "save_waypoints":
+            self.save_waypoints()
 
     """Functions run for each state"""
 
@@ -118,21 +126,50 @@ class StateMachine():
         TODO: Implement this function to execute a waypoint plan
               Make sure you respect estop signal
         """
-        
-        self.status_message = "State: Execute - Executing motion plan"
+
         self.current_state="execute"
-        joint_errors = np.array(self.waypoints[self.current_waypoint]) - np.array(self.rxarm.get_positions())
+
+        if self.current_waypoint == -1:
+            self.now = time.time()
+            self.start_exe = time.time()
+
+        
+        #Actuate Grippers
         if self.waypoint_grip[self.current_waypoint]:
             self.rxarm.close_gripper()
         else:
             self.rxarm.open_gripper()
         
-        if (np.sqrt(np.mean(joint_errors**2)) < 0.1) or (self.current_waypoint < 0):
+         #Calculate Joint Errors
+        joint_errors = np.array(self.waypoints[self.current_waypoint]) - np.array(self.rxarm.get_positions())
+        self.err = np.sqrt(np.mean(joint_errors**2))
+
+        #Waypoint checking and actuation
+        if (self.err < self.thresh) or (self.current_waypoint < 0) or (self.long_time):
             self.current_waypoint = self.current_waypoint + 1
-            self.rxarm.set_positions(self.waypoints[self.current_waypoint])
+            self.rxarm.set_positions(self.waypoints[self.current_waypoint])          
+            self.zTime = time.time()
+            self.long_time = 0
+        else:
+            if (time.time() - self.zTime >3):
+                self.long_time = 1
+
+        #Record data
+        if self.record:
+            if (time.time()-self.now >=0.2):
+                self.now = time.time()
+                file1 = open("Data.txt","a")
+                file1.write(str(self.now - self.start_exe) + ", " + str(self.waypoints[self.current_waypoint]) )
+                file1.write('\n')
+                file1.close()
+
+
+        #Check if all waypoints have been passed through
         if self.current_waypoint == len(self.waypoints)-1:
             self.current_waypoint = -1
             self.next_state = "idle"
+        self.status_message = "State: Execute - Executing motion plan, Err =" + str(self.err) + "Time since cmd:" + str(time.time()-self.zTime)
+
 
     def calibrate(self):
         """!
@@ -180,9 +217,8 @@ class StateMachine():
 
         self.current_state = "save_waypoint_open"
         self.waypoint_grip.append(0)
-        self.waypoints.append(self.rxarm.get_positions())
+        self.waypoints.append(self.rxarm.get_positions().tolist())
         self.next_state = "idle"
-
 
     def clear_waypoints(self):
         """!
@@ -192,8 +228,22 @@ class StateMachine():
         self.waypoints = []
         self.waypoint_grip = []
         self.current_waypoint = -1
-
+        self.err = 0
         self.next_state = "idle"
+
+    def save_waypoints(self):
+        """!
+        @brief      Export set of waypoints currently in memory to a .txt file
+        """        
+        self.current_state = "save_waypoints"
+        self.status_message = "Saving waypoints"
+        file1 = open("WP.txt","a")
+        file1.write(str(self.waypoints))
+        file1.write('\n')
+        file1.write(str(self.waypoint_grip))
+        file1.close()
+        self.next_state = "idle"
+
 
 class StateMachineThread(QThread):
     """!
