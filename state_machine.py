@@ -5,7 +5,9 @@ from PyQt4.QtCore import (QThread, Qt, pyqtSignal, pyqtSlot, QTimer)
 import time
 import numpy as np
 import rospy
-
+import cv2
+import math
+import sys
 
 class StateMachine():
     """!
@@ -178,7 +180,60 @@ class StateMachine():
         self.current_state = "calibrate"
         self.next_state = "idle"
 
+        image_points = np.zeros((4,3))
+        model_points = np.zeros((4,3))
+
         """TODO Perform camera calibration routine here"""
+        for idx, tag in enumerate(self.camera.tag_detections.detections):
+            x = tag.pose.pose.pose.position.x
+            y = tag.pose.pose.pose.position.y
+            z = tag.pose.pose.pose.position.z
+            image_points[idx,:] = (np.matmul(self.camera.intrinsic_matrix,np.array([x,y,z]).reshape(3,1))/z).reshape(3)
+            model_points[idx,:] = np.array(self.camera.tag_locations[tag.id[0]-1])
+        image_points=image_points[:,0:2].astype('float32')
+        model_points=model_points.astype('float32')
+
+        (success,rot_vec,trans_vec) = cv2.solvePnP(model_points,
+        image_points,
+        self.camera.intrinsic_matrix,
+        self.camera.dist_coeffs,
+        flags=cv2.SOLVEPNP_ITERATIVE)
+
+        theta = np.linalg.norm(rot_vec)
+        if theta < sys.float_info.epsilon:              
+            rotation_mat = np.eye(3, dtype=float)
+        else:
+            r = rot_vec/ theta
+            I = np.eye(3, dtype=float)
+            r_rT = np.array([
+                [r[0]*r[0], r[0]*r[1], r[0]*r[2]],
+                [r[1]*r[0], r[1]*r[1], r[1]*r[2]],
+                [r[2]*r[0], r[2]*r[1], r[2]*r[2]]
+                ])
+            r_cross = np.array([
+                [0, -r[2], r[1]],
+                [r[2], 0, -r[0]],
+                [-r[1], r[0], 0]
+                ])
+            r_rT = r_rT.reshape(3,3)
+        rotation_mat = math.cos(theta) * I + (1 - math.cos(theta)) * r_rT + math.sin(theta) * r_cross
+
+        spatial_transform = np.array([[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,1]], dtype=np.float64)
+
+        spatial_transform[0:3,3] = trans_vec.reshape(3)
+        spatial_transform[0:3,0:3] = rotation_mat
+
+        self.camera.extrinsic_matrix = np.linalg.inv(spatial_transform)
+
+
+        print(rotation_mat)
+        print('\n')
+        print(trans_vec)
+        print('\n')
+
+        print(spatial_transform)
+        print('\n')
+
         self.status_message = "Calibration - Completed Calibration"
 
     """ TODO """

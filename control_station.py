@@ -58,8 +58,8 @@ class Gui(QMainWindow):
             self.ui.sldrWristA,
             self.ui.sldrWristR,
         ]
-        self.IntrinsicCameraMatrix = np.linalg.inv(np.array([[900.543212,0,655.99074785],[0,900.8950195,353.4480286],[0,0,1]]))
-        self.CameraToWorldTransform = np.array([[0.9994,-0.0349,0,0],[-0.0341,-.9776,-.2079,336.55],[0.0073,0.2078,-0.9781,990.6],[0,0,0,1]])
+        #self.IntrinsicCameraMatrix = np.linalg.inv(np.array([[900.543212,0,655.99074785],[0,900.8950195,353.4480286],[0,0,1]]))
+        #self.CameraToWorldTransform = np.array([[0.9994,-0.0349,0,0],[-0.0341,-.9776,-.2079,336.55],[0.0073,0.2078,-0.9781,990.6],[0,0,0,1]])
         """Objects Using Other Classes"""
         self.camera = Camera()
         print("Creating rx arm...")
@@ -99,6 +99,8 @@ class Gui(QMainWindow):
         self.ui.btnUser4.setText('Execute')
         self.ui.btnUser4.clicked.connect(partial(nxt_if_arm_init, 'execute'))
         
+        self.ui.btnUser4.clicked.connect(partial(nxt_if_arm_init, 'execute'))
+        
         
         self.ui.btnUser5.setText('Add Waypoint Closed Gripper')
         self.ui.btnUser5.clicked.connect(partial(nxt_if_arm_init, 'save_waypoint_close'))
@@ -111,6 +113,7 @@ class Gui(QMainWindow):
 
         self.ui.btnUser8.setText('Save Waypoints')
         self.ui.btnUser8.clicked.connect(partial(nxt_if_arm_init, 'save_waypoints'))
+        
 
 
 
@@ -236,6 +239,7 @@ class Gui(QMainWindow):
         @param      mouse_event  QtMouseEvent containing the pose of the mouse at the time of the event not current time
         """
 
+        self.IntrinsicCameraMatrix = np.linalg.inv(self.camera.intrinsic_matrix)
         pt = mouse_event.pos()
         if self.camera.DepthFrameRaw.any() != 0:
             z = self.camera.DepthFrameRaw[pt.y()][pt.x()]
@@ -243,10 +247,11 @@ class Gui(QMainWindow):
                                              (pt.x(), pt.y(), z))
 
             CartesianInCamera = z*self.IntrinsicCameraMatrix.dot(np.array([pt.x(),pt.y(),1]))
-            WorldPoint = self.CameraToWorldTransform.dot(np.array([CartesianInCamera[0],CartesianInCamera[1],CartesianInCamera[2],1]))
-
+            WorldPoint = self.camera.extrinsic_matrix.dot(np.array([CartesianInCamera[0],CartesianInCamera[1],CartesianInCamera[2],1]))
             self.ui.rdoutMouseWorld.setText("(%.0f,%.0f,%.0f)" %
                                              (WorldPoint[0], WorldPoint[1], WorldPoint[2]))
+        #print(self.CameraToWorldTransform)
+
 
     def calibrateMousePress(self, mouse_event):
         """!
