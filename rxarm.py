@@ -78,7 +78,6 @@ class RXArm(InterbotixRobot):
         self.velocity_fb = None
         self.effort_fb = None
         # DH Params
-
         self.dh_params = [[0,math.pi/2,103.91,0],
                         [205.73,0,0,0],
                         [200,0,0,0],
