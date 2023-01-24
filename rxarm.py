@@ -189,10 +189,11 @@ class RXArm(InterbotixRobot):
 
         @return     The EE pose as [x, y, z, phi] or as needed.
         """
-        dh_joint = np.copy(self.joint_positions)
-        T = FK_dh(self.dh_params,dh_joint,4)
-
-        return get_pose_from_T(T)
+        # dh_joint = np.copy(self.joint_positions)
+        # T = FK_dh(self.dh_params,dh_joint,4)
+        # print(T)
+        # # return get_pose_from_T(T)
+        return [0,0,0,0]
 
     @_ensure_initialized
     def get_wrist_pose(self):

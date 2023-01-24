@@ -79,6 +79,7 @@ def get_euler_angles_from_T(T):
 
     @return     The euler angles from T. Euler angles used ZYZ
     """
+    print(T)
     R = T[0:3,0:3]  #Rotation Matrix
 
     theta = math.atan2(math.sqrt(1-R[2][2]**2),R[2][2])

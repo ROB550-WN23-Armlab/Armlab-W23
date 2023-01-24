@@ -180,8 +180,8 @@ class StateMachine():
         self.current_state = "calibrate"
         self.next_state = "idle"
 
-        image_points = np.zeros((4,3))
-        model_points = np.zeros((4,3))
+        image_points = np.zeros((8,3))
+        model_points = np.zeros((8,3))
 
         """TODO Perform camera calibration routine here"""
         for idx, tag in enumerate(self.camera.tag_detections.detections):
@@ -192,12 +192,17 @@ class StateMachine():
             model_points[idx,:] = np.array(self.camera.tag_locations[tag.id[0]-1])
         image_points=image_points[:,0:2].astype('float32')
         model_points=model_points.astype('float32')
-
+        image_points = image_points[~np.all(image_points == 0, axis=1)]
+        model_points = model_points[~np.all(model_points == 0, axis=1)]
+        print(image_points)
+        print('\n')
+        print(model_points)
+        print('\n\n\n')
         (success,rot_vec,trans_vec) = cv2.solvePnP(model_points,
-        image_points,
-        self.camera.intrinsic_matrix,
-        self.camera.dist_coeffs,
-        flags=cv2.SOLVEPNP_ITERATIVE)
+                                                   image_points,
+                                                   self.camera.intrinsic_matrix,
+                                                   self.camera.dist_coeffs,
+                                                   flags=cv2.SOLVEPNP_ITERATIVE)
 
         theta = np.linalg.norm(rot_vec)
         if theta < sys.float_info.epsilon:              
@@ -224,15 +229,6 @@ class StateMachine():
         spatial_transform[0:3,0:3] = rotation_mat
 
         self.camera.extrinsic_matrix = np.linalg.inv(spatial_transform)
-
-
-        print(rotation_mat)
-        print('\n')
-        print(trans_vec)
-        print('\n')
-
-        print(spatial_transform)
-        print('\n')
 
         self.status_message = "Calibration - Completed Calibration"
 

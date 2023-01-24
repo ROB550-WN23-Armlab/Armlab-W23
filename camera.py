@@ -40,7 +40,7 @@ class Camera():
         self.rgb_click_points = np.zeros((5, 2), int)
         self.depth_click_points = np.zeros((5, 2), int)
         self.tag_detections = np.array([])
-        self.tag_locations = [[-250,-25,0],[250, -25,0], [250, 275,0],[-250,275,0]]
+        self.tag_locations = [[-250,-25,0],[250, -25,0], [250, 275,0],[-250,275,0], [475,-100, 155], [-375,400, 245], [75,200,62.5], [-475,-150,95]]
         self.dist_coeffs = np.array([.140,-.459,-.001,0,0.405])
         """ block info """
         self.block_contours = np.array([])
