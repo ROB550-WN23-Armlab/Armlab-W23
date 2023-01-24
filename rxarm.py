@@ -23,6 +23,7 @@ from interbotix_descriptions import interbotix_mr_descriptions as mrd
 from config_parse import *
 from sensor_msgs.msg import JointState
 import rospy
+import math
 """
 TODO: Implement the missing functions and add anything you need to support them
 """
@@ -77,7 +78,12 @@ class RXArm(InterbotixRobot):
         self.velocity_fb = None
         self.effort_fb = None
         # DH Params
-        self.dh_params = [[0,math.pi/2,103.91,self.joint_positions[0]],[205.73,0,0,self.joint_positions[1]],[200,0,0,self.joint_positions[2]],[65,math.pi/2,0,self.joint_positions[3]],[0,0,100,self.joint_positions[4]]]    #DH matrix here
+
+        self.dh_params = [[0,math.pi/2,103.91,0],
+                        [205.73,0,0,0],
+                        [200,0,0,0],
+                        [0,math.pi/2,0,0],
+                        [0,0,165,0]]    #DH matrix here  a,alpha,d,theta
         self.dh_config_file = dh_config_file
         if (dh_config_file is not None):
             self.dh_params = RXArm.parse_dh_param_file(dh_config_file)
@@ -191,8 +197,11 @@ class RXArm(InterbotixRobot):
         """
         dh_joint = np.copy(self.joint_positions)
         T = FK_dh(self.dh_params,dh_joint,5)
+        pose = get_pose_from_T(T)
+        #print(np.sqrt(pose[0]**2 + pose[1]**2)) #stays constant when expected :)
+        #print(get_pose_from_T(T))
 
-        return get_pose_from_T(T)
+        return pose
 
     @_ensure_initialized
     def get_wrist_pose(self):

@@ -46,10 +46,21 @@ def FK_dh(dh_params, joint_angles, link):
     @return     a transformation matrix representing the pose of the desired link
     """
     T_mat = np.eye(4)
+    joint_angles_mod = [joint_angles[0]+math.pi/2,joint_angles[1]+math.atan2(50,200),joint_angles[2]-math.atan2(50,200),joint_angles[3]+math.pi/2,joint_angles[4]]
 
-    for j in range(0,link):
-        T_mat = get_transform_from_dh(dh_params[j,:])*T_mat
+    for j in range(link):
+        a = dh_params[j][0]
+        alpha = dh_params[j][1]
+        d = dh_params[j][2]
+        theta = joint_angles_mod[j] 
+
+        #print(get_transform_from_dh(a,alpha,d,theta))
+        T_mat = np.matmul(T_mat,get_transform_from_dh(a,alpha,d,theta))
     
+    #print(T_mat.astype('int'))
+    #print('\n')
+
+
     return T_mat
 
 
@@ -66,7 +77,7 @@ def get_transform_from_dh(a, alpha, d, theta):
 
     @return     The 4x4 transformation matrix.
     """
-    T = np.zeros((4,4))
+    T = np.array((4,4))
     T = np.array([[np.cos(theta),   -np.sin(theta)*np.cos(alpha),  np.sin(theta)*np.sin(alpha), a*np.cos(theta)],\
                     [np.sin(theta),  np.cos(theta)*np.cos(alpha), -np.cos(theta)*np.sin(alpha), a*np.sin(theta)],\
                     [0,              np.sin(alpha),                np.cos(alpha),               d], \
@@ -84,7 +95,6 @@ def get_euler_angles_from_T(T):
 
     @return     The euler angles from T. Euler angles used ZYZ
     """
-    print(T)
     R = T[0:3,0:3]  #Rotation Matrix
 
     theta = math.atan2(math.sqrt(1-R[2][2]**2),R[2][2])
