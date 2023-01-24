@@ -8,6 +8,7 @@ There are some functions to start with, you may need to implement a few more
 import numpy as np
 # expm is a matrix exponential function
 from scipy.linalg import expm
+import math
 
 
 def clamp(angle):
@@ -60,8 +61,12 @@ def get_transform_from_dh(a, alpha, d, theta):
 
     @return     The 4x4 transformation matrix.
     """
-    pass
-
+    T = np.zeros((4,4))
+    T = np.array([[np.cos(theta),   -np.sin(theta)*np.cos(alpha),  np.sin(theta)*np.sin(alpha), a*np.cos(theta)],\
+                    [np.sin(theta),  np.cos(theta)*np.cos(alpha), -np.cos(theta)*np.sin(alpha), a*np.sin(theta)],\
+                    [0,              np.sin(alpha),                np.cos(alpha),               d], \
+                    [0,              0,                            0,                           1] ])
+    return T
 
 def get_euler_angles_from_T(T):
     """!
@@ -72,9 +77,40 @@ def get_euler_angles_from_T(T):
 
     @param      T     transformation matrix
 
-    @return     The euler angles from T.
+    @return     The euler angles from T. Euler angles used ZYZ
     """
-    pass
+    R = T[0:3,0:3]  #Rotation Matrix
+
+    theta = math.atan2(math.sqrt(1-R[2][2]**2),R[2][2])
+    if(math.sin(theta)>0):
+        phi = math.atan2(R[1][2],R[0][2])
+        psi = math.atan2(R[2][1],-R[2][0])
+    else:
+        phi = math.atan2(-R[1][2],-R[0][2])
+        psi = math.atan2(-R[2][1],R[2][0])
+    return (phi,theta,psi)
+
+
+def get_R_from_euler_angles(phi,theta,psi):
+    """!
+    @brief      Gets the rotation matrix (ZYZ) from euler angles.
+
+    @param      Euler angles phi, theta, psi 
+
+    @return     Rotation matrix (ZYZ)
+    """
+    R = np.eye(3)
+    c1 = np.cos(phi)
+    s1 = np.sin(phi)
+    c2 = np.cos(theta)
+    s2 = np.sin(theta)
+    c3 = np.cos(psi)
+    s3 = np.sin(psi)
+    R = np.array([[c1*c2*c3-s1*s3, -c3*s1-c1*c2*s3, c1*s2],
+                         [c1*s3+c2*c3*s1, c1*c3-c2*s1*s3, s1*s2],
+                         [-c3*s2, s2*s3, c2]])
+    return R
+
 
 
 def get_pose_from_T(T):
@@ -87,8 +123,9 @@ def get_pose_from_T(T):
 
     @return     The pose vector from T.
     """
-    pass
+    phi,theta,psi = get_euler_angles_from_T(T)
 
+    return [T[0][3], T[1][3], T[2][3], phi, theta, psi]
 
 def FK_pox(joint_angles, m_mat, s_lst):
     """!
@@ -103,7 +140,18 @@ def FK_pox(joint_angles, m_mat, s_lst):
 
     @return     a 4x4 homogeneous matrix representing the pose of the desired link
     """
+    # no_joint_angles = max(np.size(joint_angles, 0),np.size(joint_angles, 1))
+    # s_1_mat = to_s_matrix(s_lst[0:3,0],s_lst[3:6,0])
+    # s_2_mat = to_s_matrix(s_lst[0:3,1],s_lst[3:6,1])
+    # s_3_mat = to_s_matrix(s_lst[0:3,2],s_lst[3:6,2])
+
+    # R_1_mat = expm(s_1_mat*joint_angles[0])
+    # R_2_mat = expm(s_2_mat*joint_angles[1])
+    # R_3_mat = expm(s_2_mat*joint_angles[2])
+
+    # return R_1_mat.dot(R_2_mat).dot(R_3_mat).dot(m_mat)
     pass
+
 
 
 def to_s_matrix(w, v):
@@ -118,8 +166,13 @@ def to_s_matrix(w, v):
 
     @return     { description_of_the_return_value }
     """
+    # skew_w = skew(w)
+    # v_array = np.vstack(v)
+    # z_array = np.zeros((1, 4))
+    # S_matrix = np.c_(skew_w,v_array)
+    # return np.r_(S_matrix,z_array)
     pass
-
+    
 
 def IK_geometric(dh_params, pose):
     """!

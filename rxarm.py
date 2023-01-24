@@ -77,7 +77,7 @@ class RXArm(InterbotixRobot):
         self.velocity_fb = None
         self.effort_fb = None
         # DH Params
-        self.dh_params = []
+        self.dh_params = []    #DH matrix here
         self.dh_config_file = dh_config_file
         if (dh_config_file is not None):
             self.dh_params = RXArm.parse_dh_param_file(dh_config_file)
@@ -189,7 +189,10 @@ class RXArm(InterbotixRobot):
 
         @return     The EE pose as [x, y, z, phi] or as needed.
         """
-        return [0, 0, 0, 0]
+        dh_joint = np.copy(self.joint_positions)
+        T = FK_dh(self.dh_params,dh_joint,4)
+
+        return get_pose_from_T(T)
 
     @_ensure_initialized
     def get_wrist_pose(self):
