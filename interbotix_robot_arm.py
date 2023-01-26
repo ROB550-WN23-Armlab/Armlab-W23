@@ -1,4 +1,5 @@
 import math
+import operator
 import rospy
 import threading
 import numpy as np
@@ -125,6 +126,7 @@ class InterbotixRobot(object):
     ### @param accel_time - duration in seconds that that robot should spend accelerating/decelerating (must be less than or equal to half the moving_time)
     ### @param blocking - whether the function should wait to return control to the user until the robot finishes moving
     def publish_positions(self, positions, moving_time=None, accel_time=None, blocking=True):
+        positions = tuple(map(operator.add,positions,tuple(self.position_offset)))
         self.set_trajectory_time(moving_time, accel_time)
         self.joint_positions = list(positions)
         joint_commands = JointCommands(positions)

@@ -47,8 +47,8 @@ def FK_dh(dh_params, joint_angles, link):
     """
     T_mat = np.eye(4)
     joint_angles_mod = [joint_angles[0]+math.pi/2,
-                        joint_angles[1]-math.atan2(50,200),
-                        joint_angles[2]-math.atan2(50,200),
+                        -joint_angles[1]+math.atan2(200,50),
+                        joint_angles[2]-math.atan2(200,50),
                         joint_angles[3]+math.pi/2,
                         joint_angles[4]]
 

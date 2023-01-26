@@ -75,6 +75,7 @@ class RXArm(InterbotixRobot):
         self.accel_time = 0.5
         # Feedback
         self.position_fb = None
+        self.position_offset = [2.81*math.pi/180,0,0,0,0]
         self.velocity_fb = None
         self.effort_fb = None
         # DH Params
@@ -82,7 +83,7 @@ class RXArm(InterbotixRobot):
                         [205.73,0,0,0],
                         [200,0,0,0],
                         [0,math.pi/2,0,0],
-                        [0,0,165,0]]    #DH matrix here  a,alpha,d,theta
+                        [0,0,174.15,0]]    #DH matrix here  a,alpha,d,theta
         self.dh_config_file = dh_config_file
         if (dh_config_file is not None):
             self.dh_params = RXArm.parse_dh_param_file(dh_config_file)
@@ -194,7 +195,7 @@ class RXArm(InterbotixRobot):
 
         @return     The EE pose as [x, y, z, phi] or as needed.
         """
-        dh_joint = np.copy(self.joint_positions)
+        dh_joint = np.copy(self.get_positions())
         T = FK_dh(self.dh_params,dh_joint,5)
         pose = get_pose_from_T(T)
         #print(np.sqrt(pose[0]**2 + pose[1]**2)) #stays constant when expected :)
@@ -256,6 +257,7 @@ class RXArmThread(QThread):
 
     def callback(self, data):
         self.rxarm.position_fb = np.asarray(data.position)[0:5]
+        self.rxarm.position_fb = self.rxarm.position_fb - self.rxarm.position_offset
         self.rxarm.velocity_fb = np.asarray(data.velocity)[0:5]
         self.rxarm.effort_fb = np.asarray(data.effort)[0:5]
         self.updateJointReadout.emit(self.rxarm.position_fb.tolist())

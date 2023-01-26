@@ -111,7 +111,7 @@ class StateMachine():
         """!
         @brief      Do nothing
         """
-        self.status_message = "State: Idle - Waiting for input hi"
+        self.status_message = "State: Idle - Waiting for input"
         self.current_state = "idle"
 
     def estop(self):
