@@ -25,6 +25,7 @@ class Camera():
         @brief      Construcfalsets a new instance.
         """
         self.VideoFrame = np.zeros((720, 1280, 3)).astype(np.uint8)
+        self.GridFrame = np.zeros((720, 1280, 3)).astype(np.uint8)
         self.TagImageFrame = np.zeros((720, 1280, 3)).astype(np.uint8)
         self.DepthFrameRaw = np.zeros((720, 1280)).astype(np.uint16)
         """ Extra arrays for colormaping the depth image"""
@@ -34,7 +35,7 @@ class Camera():
         # mouse clicks & calibration variables
         self.cameraCalibrated = False
         self.intrinsic_matrix = np.array([[900.543212,0,655.99074785],[0,900.8950195,353.4480286],[0,0,1]])#np.array([])
-        self.extrinsic_matrix = np.identity(4) #np.array([[0.9994,-0.0349,0,0],[-0.0341,-.9776,-.2079,336.55],[0.0073,0.2078,-0.9781,990.6],[0,0,0,1]])#np.array([])
+        self.extrinsic_matrix = np.linalg.inv(np.array([[0.9994,-0.0349,0,0],[-0.0341,-.9776,-.2079,336.55],[0.0073,0.2078,-0.9781,990.6],[0,0,0,1]]))#np.array([])
         self.last_click = np.array([0, 0])
         self.new_click = False
         self.rgb_click_points = np.zeros((5, 2), int)
@@ -45,6 +46,13 @@ class Camera():
         """ block info """
         self.block_contours = np.array([])
         self.block_detections = np.array([])
+        self.homography = None
+
+        #Setup for grid projection
+        ypos = 50.0 * np.arange(-2.5, 9.5, 1.0)
+        xpos = 50.0 * np.arange(-9.0, 10.0, 1.0)
+        xloc, yloc = np.meshgrid(xpos, ypos)
+        self.board_points = np.array(np.meshgrid(xpos, ypos)).T.reshape(-1, 2)        
 
     def processVideoFrame(self):
         """!
@@ -89,6 +97,25 @@ class Camera():
             frame = cv2.resize(self.VideoFrame, (1280, 720))
             img = QImage(frame, frame.shape[1], frame.shape[0],
                          QImage.Format_RGB888)
+            return img
+        except:
+            return None
+
+    def convertQtGridFrame(self):
+        """!
+        @brief      Converts frame to format suitable for Qt
+
+        @return     QImage
+        """
+        try:
+            frame = cv2.resize(self.GridFrame, (1280, 720))
+
+            if self.homography is not None:
+                frame = cv2.warpPerspective(frame, self.homography,(frame.shape[1], frame.shape[0]))
+                #print('homographacation')      
+
+            img = QImage(frame, frame.shape[1], frame.shape[0],
+                         QImage.Format_RGB888)      
             return img
         except:
             return None
@@ -162,6 +189,31 @@ class Camera():
         """
         pass
 
+    def projectGridInRGBImage(self):
+        """!
+        @brief      projects
+
+                    TODO: Use the intrinsic and extrinsic matricies to project the gridpoints 
+                    on the board into pixel coordinates. copy self.VideoFrame to self.GridFrame and
+                    and draw on self.GridFrame the grid intersection points from self.grid_points
+                    (hint: use the cv2.circle function to draw circles on the image)
+        """
+        self.GridFrame = self.VideoFrame.copy()
+
+        board_points_3D = np.column_stack((self.board_points, np.zeros(self.board_points.shape[0])))
+        board_points_homogenous = np.column_stack((board_points_3D, np.ones(self.board_points.shape[0])))
+
+
+        for point in board_points_homogenous:
+            camera_coords = np.matmul(self.extrinsic_matrix,point).reshape(4)
+            Zc = camera_coords[2]
+            pixel_coords = 1/Zc*np.matmul(self.intrinsic_matrix,camera_coords[0:3])[0:2]
+            #print(pixel_coords)
+            self.GridFrame = cv2.circle(self.GridFrame, (int(pixel_coords[0]), int(pixel_coords[1])), 5, (0,0,255), 1)
+
+
+
+        
 
 class ImageListener:
     def __init__(self, topic, camera):
@@ -237,7 +289,7 @@ class DepthListener:
 
 
 class VideoThread(QThread):
-    updateFrame = pyqtSignal(QImage, QImage, QImage)
+    updateFrame = pyqtSignal(QImage, QImage, QImage,QImage)
 
     def __init__(self, camera, parent=None):
         QThread.__init__(self, parent=parent)
@@ -260,13 +312,16 @@ class VideoThread(QThread):
             cv2.namedWindow("Image window", cv2.WINDOW_NORMAL)
             cv2.namedWindow("Depth window", cv2.WINDOW_NORMAL)
             cv2.namedWindow("Tag window", cv2.WINDOW_NORMAL)
+            cv2.namedWindow("Grid window", cv2.WINDOW_NORMAL)            
             time.sleep(0.5)
         while True:
             rgb_frame = self.camera.convertQtVideoFrame()
             depth_frame = self.camera.convertQtDepthFrame()
             tag_frame = self.camera.convertQtTagImageFrame()
+            self.camera.projectGridInRGBImage()
+            grid_frame = self.camera.convertQtGridFrame()
             if ((rgb_frame != None) & (depth_frame != None)):
-                self.updateFrame.emit(rgb_frame, depth_frame, tag_frame)
+                self.updateFrame.emit(rgb_frame, depth_frame, tag_frame, grid_frame)
             time.sleep(0.03)
             if __name__ == '__main__':
                 cv2.imshow(
@@ -276,6 +331,9 @@ class VideoThread(QThread):
                 cv2.imshow(
                     "Tag window",
                     cv2.cvtColor(self.camera.TagImageFrame, cv2.COLOR_RGB2BGR))
+                cv2.imshow("Grid window",
+                    cv2.cvtColor(self.camera.GridFrame, cv2.COLOR_RGB2BGR))
+
                 cv2.waitKey(3)
                 time.sleep(0.03)
 

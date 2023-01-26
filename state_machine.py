@@ -184,6 +184,9 @@ class StateMachine():
         model_points = np.zeros((8,3))
 
         """TODO Perform camera calibration routine here"""
+        #Extrinsic Matrix Calculation
+
+        #Read in April Tag data
         for idx, tag in enumerate(self.camera.tag_detections.detections):
             x = tag.pose.pose.pose.position.x
             y = tag.pose.pose.pose.position.y
@@ -194,16 +197,16 @@ class StateMachine():
         model_points=model_points.astype('float32')
         image_points = image_points[~np.all(image_points == 0, axis=1)]
         model_points = model_points[~np.all(model_points == 0, axis=1)]
-        print(image_points)
-        print('\n')
-        print(model_points)
-        print('\n\n\n')
+        
+
+        #Get translation and rotation vector
         (success,rot_vec,trans_vec) = cv2.solvePnP(model_points,
                                                    image_points,
                                                    self.camera.intrinsic_matrix,
                                                    self.camera.dist_coeffs,
                                                    flags=cv2.SOLVEPNP_ITERATIVE)
 
+        #Use Rodrigues to convert rotataion vector into rotation matrix
         theta = np.linalg.norm(rot_vec)
         if theta < sys.float_info.epsilon:              
             rotation_mat = np.eye(3, dtype=float)
@@ -222,13 +225,33 @@ class StateMachine():
                 ])
             r_rT = r_rT.reshape(3,3)
         rotation_mat = math.cos(theta) * I + (1 - math.cos(theta)) * r_rT + math.sin(theta) * r_cross
-
+        #Put together extrinsic matrix
         spatial_transform = np.array([[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,1]], dtype=np.float64)
 
         spatial_transform[0:3,3] = trans_vec.reshape(3)
         spatial_transform[0:3,0:3] = rotation_mat
+        self.camera.extrinsic_matrix = spatial_transform
 
-        self.camera.extrinsic_matrix = np.linalg.inv(spatial_transform)
+        #Homography Transform calculations
+        corner_coords_world = np.array([[500,-175,0,1],[500,475,0,1], [-500, 475,0,1], [-500,-175,0,1]]) #[LR, UR, UL, LL]
+        corner_coords_pixel = np.zeros((4,2))
+        for i in range(4):
+            corner_coords_camera_i = np.matmul(self.camera.extrinsic_matrix,corner_coords_world[i,:].reshape(4))  
+            Zc = corner_coords_camera_i[2]
+            corner_coords_pixel[i,:] = 1/Zc*np.matmul(self.camera.intrinsic_matrix,corner_coords_camera_i[0:3].reshape((3,1)))[0:2].reshape(1,2)
+        
+        """TODO Make calibration force user to click on corner points"""
+        src_pts = np.array([[1102,620], [1139,35], [178,63], [245,637]])
+        dest_pts = corner_coords_pixel
+
+        print(src_pts)
+
+        print(dest_pts)
+
+        self.camera.homography = cv2.findHomography(src_pts, dest_pts)[0]
+
+        print(self.camera.homography)
+        print('\n')
 
         self.status_message = "Calibration - Completed Calibration"
 

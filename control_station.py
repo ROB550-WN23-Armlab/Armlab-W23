@@ -167,8 +167,8 @@ class Gui(QMainWindow):
         self.ui.rdoutTheta.setText(str("%+.2f rad" % (pos[4])))
         self.ui.rdoutPsi.setText(str("%+.2f rad" % (pos[5])))
 
-    @pyqtSlot(QImage, QImage, QImage)
-    def setImage(self, rgb_image, depth_image, tag_image):
+    @pyqtSlot(QImage, QImage, QImage, QImage)
+    def setImage(self, rgb_image, depth_image, tag_image, grid_image):
         """!
         @brief      Display the images from the camera.
 
@@ -181,6 +181,9 @@ class Gui(QMainWindow):
             self.ui.videoDisplay.setPixmap(QPixmap.fromImage(depth_image))
         if (self.ui.radioUsr1.isChecked()):
             self.ui.videoDisplay.setPixmap(QPixmap.fromImage(tag_image))
+        if (self.ui.radioUsr2.isChecked()):
+            self.ui.videoDisplay.setPixmap(QPixmap.fromImage(grid_image))
+
 
     """ Other callback functions attached to GUI elements"""
 
@@ -239,15 +242,16 @@ class Gui(QMainWindow):
         @param      mouse_event  QtMouseEvent containing the pose of the mouse at the time of the event not current time
         """
 
-        self.IntrinsicCameraMatrix = np.linalg.inv(self.camera.intrinsic_matrix)
+        self.invIntrinsicCameraMatrix = np.linalg.inv(self.camera.intrinsic_matrix)
+        self.invExtrinsicCameraMatrix = np.linalg.inv(self.camera.extrinsic_matrix)
         pt = mouse_event.pos()
         if self.camera.DepthFrameRaw.any() != 0:
             z = self.camera.DepthFrameRaw[pt.y()][pt.x()]
             self.ui.rdoutMousePixels.setText("(%.0f,%.0f,%.0f)" %
                                              (pt.x(), pt.y(), z))
 
-            CartesianInCamera = z*self.IntrinsicCameraMatrix.dot(np.array([pt.x(),pt.y(),1]))
-            WorldPoint = self.camera.extrinsic_matrix.dot(np.array([CartesianInCamera[0],CartesianInCamera[1],CartesianInCamera[2],1]))
+            CartesianInCamera = z*self.invIntrinsicCameraMatrix.dot(np.array([pt.x(),pt.y(),1]))
+            WorldPoint = self.invExtrinsicCameraMatrix.dot(np.array([CartesianInCamera[0],CartesianInCamera[1],CartesianInCamera[2],1]))
             self.ui.rdoutMouseWorld.setText("(%.0f,%.0f,%.0f)" %
                                              (WorldPoint[0], WorldPoint[1], WorldPoint[2]))
         #print(self.CameraToWorldTransform)
