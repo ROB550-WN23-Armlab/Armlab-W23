@@ -48,6 +48,9 @@ class Camera():
         self.block_detections = np.array([])
         self.homography = None
 
+        #Homography calibration
+        self.corners_collected = 0
+        self.corner_pts = np.zeros((4,2))
         #Setup for grid projection
         ypos = 50.0 * np.arange(-2.5, 9.5, 1.0)
         xpos = 50.0 * np.arange(-9.0, 10.0, 1.0)

@@ -46,6 +46,7 @@ class StateMachine():
         self.thresh = 0.05
         self.long_time = 0
         self.record = 0
+        self.pts_obtained = 0
 
     def set_next_state(self, state):
         """!
@@ -241,17 +242,22 @@ class StateMachine():
             corner_coords_pixel[i,:] = 1/Zc*np.matmul(self.camera.intrinsic_matrix,corner_coords_camera_i[0:3].reshape((3,1)))[0:2].reshape(1,2)
         
         """TODO Make calibration force user to click on corner points"""
+        if self.camera.corners_collected == 0:
+            self.status_message = "Click on lower right corner"
+        elif self.camera.corners_collected == 1:
+            self.status_message = "Click on upper right corner"
+        elif self.camera.corners_collected == 2:
+            self.status_message = "Click on upper left corner"
+        elif self.camera.corners_collected == 3:
+            self.status_message = "Click on lower left corner"
+        else:
+            src_pts = self.camera.corner_pts
         src_pts = np.array([[1102,620], [1139,35], [178,63], [245,637]])
         dest_pts = corner_coords_pixel
 
-        print(src_pts)
-
-        print(dest_pts)
-
         self.camera.homography = cv2.findHomography(src_pts, dest_pts)[0]
 
-        print(self.camera.homography)
-        print('\n')
+
 
         self.status_message = "Calibration - Completed Calibration"
 
