@@ -98,6 +98,9 @@ class StateMachine():
         if self.next_state == "save_waypoints":
             self.save_waypoints()
 
+        if self.next_state == "save_image":
+            self.save_image()
+
     """Functions run for each state"""
 
     def manual(self):
@@ -172,7 +175,6 @@ class StateMachine():
             self.next_state = "idle"
         self.status_message = "State: Execute - Executing motion plan, Err =" + str(self.err) + "Time since cmd:" + str(time.time()-self.zTime)
 
-
     def calibrate(self):
         """!
         @brief      Gets the user input to perform the calibration
@@ -241,8 +243,10 @@ class StateMachine():
             corner_coords_pixel[i,:] = 1/Zc*np.matmul(self.camera.intrinsic_matrix,corner_coords_camera_i[0:3].reshape((3,1)))[0:2].reshape(1,2)
         
         """TODO Make calibration force user to click on corner points"""
-        src_pts = np.array([[1102,620], [1139,35], [178,63], [245,637]])
-        dest_pts = corner_coords_pixel
+        src_pts = corner_coords_pixel
+        dest_pts = np.array([[1280,720], [1280,0], [0,0], [0,720]])
+        #src_pts = np.array([[1102,620], [1139,35], [178,63], [245,637]])
+        #dest_pts = corner_coords_pixel
 
         print(src_pts)
 
@@ -283,7 +287,6 @@ class StateMachine():
         self.waypoints.append(self.rxarm.get_positions())
         self.next_state = "idle"
 
-
     def save_waypoint_open(self):
         """!
         @brief      Adds waypoint with an open gripper to set of waypoints
@@ -317,6 +320,14 @@ class StateMachine():
         file1.write(str(self.waypoint_grip))
         file1.close()
         self.next_state = "idle"
+
+    """ TODO """
+    def save_image(self):
+        """!
+        @brief      Save camera image for asynchrnous CV testing
+        """        
+        pass
+
 
 
 class StateMachineThread(QThread):

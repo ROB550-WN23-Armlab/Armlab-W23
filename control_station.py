@@ -114,7 +114,8 @@ class Gui(QMainWindow):
         self.ui.btnUser8.setText('Save Waypoints')
         self.ui.btnUser8.clicked.connect(partial(nxt_if_arm_init, 'save_waypoints'))
         
-
+        self.ui.btnUser9.setText('Save Image')
+        self.ui.btnUser9.clicked.connect(partial(nxt_if_arm_init, 'save_image'))
 
 
 
@@ -124,6 +125,8 @@ class Gui(QMainWindow):
             sldr.valueChanged.connect(self.sliderChange)
         self.ui.sldrMoveTime.valueChanged.connect(self.sliderChange)
         self.ui.sldrAccelTime.valueChanged.connect(self.sliderChange)
+        self.ui.sldrTopThresh.valueChanged.connect(self.sliderChange)
+        self.ui.sldrBottomThresh.valueChanged.connect(self.sliderChange)
         # Direct Control
         self.ui.chk_directcontrol.stateChanged.connect(self.directControlChk)
         # Status
@@ -204,8 +207,14 @@ class Gui(QMainWindow):
             str(self.ui.sldrMoveTime.value() / 10.0) + "s")
         self.ui.rdoutAccelTime.setText(
             str(self.ui.sldrAccelTime.value() / 20.0) + "s")
+        self.ui.rdoutTopThresh.setText(
+            str(self.ui.sldrTopThresh.value()) + "mm")
+        self.ui.rdoutBottomThresh.setText(
+            str(self.ui.sldrBottomThresh.value()) + "mm")
         self.rxarm.set_moving_time(self.ui.sldrMoveTime.value() / 10.0)
         self.rxarm.set_accel_time(self.ui.sldrAccelTime.value() / 20.0)
+        self.camera.set_TopThresh(self.ui.sldrTopThresh.value())
+        self.camera.set_BottomThresh(self.ui.sldrBottomThresh.value())
 
         # Do nothing if the rxarm is not initialized
         if self.rxarm.initialized:

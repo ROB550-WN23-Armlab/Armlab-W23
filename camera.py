@@ -15,6 +15,10 @@ from sensor_msgs.msg import CameraInfo
 from apriltag_ros.msg import *
 from cv_bridge import CvBridge, CvBridgeError
 
+#Stuff for finding countours
+import argparse
+import sys
+
 
 class Camera():
     """!
@@ -44,9 +48,11 @@ class Camera():
         self.tag_locations = [[-250,-25,0],[250, -25,0], [250, 275,0],[-250,275,0], [475,-100, 155], [-375,400, 245], [75,200,62.5], [-475,-150,95]]
         self.dist_coeffs = np.array([.140,-.459,-.001,0,0.405])
         """ block info """
-        self.block_contours = np.array([])
-        self.block_detections = np.array([])
+        self.centroids = None
+        self.block_detections = np.array([]) #unused
         self.homography = None
+        self.TopThresh = 950
+        self.BottomThresh = 987
 
         #Setup for grid projection
         ypos = 50.0 * np.arange(-2.5, 9.5, 1.0)
@@ -178,16 +184,64 @@ class Camera():
 
                     TODO: Implement your block detector here. You will need to locate blocks in 3D space and put their XYZ
                     locations in self.block_detections
-        """
-        pass
+        """        
+        
+
 
     def detectBlocksInDepthImage(self):
         """!
         @brief      Detect blocks from depth
 
                     TODO: Implement a blob detector to find blocks in the depth image
-        """
-        pass
+        """        
+
+        lower = self.TopThresh
+        upper = self.BottomThresh
+
+        #Mask out robot arm
+        mask = np.zeros_like(self.DepthFrameRaw, dtype=np.uint8)
+        cv2.rectangle(mask, (275,120),(1100,720), 255, cv2.FILLED)
+        cv2.rectangle(mask, (600,414),(740,720), 0, cv2.FILLED)
+        
+        cv2.rectangle(self.VideoFrame,(275,120),(1100,720), (255, 0, 0), 2)
+        cv2.rectangle(self.VideoFrame, (600,414),(740,720), (255, 0, 0), 2)
+
+        thresh = cv2.bitwise_and(cv2.inRange(self.DepthFrameRaw, lower, upper), mask)
+
+        self.DepthFrameRGB = thresh
+
+        _, self.contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        centr = []
+        cv2.drawContours(self.DepthFrameRGB, self.contours, -1, (0,255,255), 3)        
+        
+        # for contour in self.contours:
+        
+        
+        #     rect = cv2.minAreaRect(contour)
+        #     box = cv2.boxPoints(rect)
+        #     box = np.int0(box)<
+        #     cv2.drawContours(self.DepthFrameRGB, [box], 0, (0,0,255), 2)
+
+        #     print("Rectangle data")
+        #     print(rect)
+        #     print("")
+
+            # Centroid Calculation using moment equations on contours   
+            #M = cv2.moments(contour)        
+            # if M["m00"] != 0.0:
+            #     thisCenter = M["m10"] / M["m00"] ,M["m01"] / M["m00"]
+            #     centr.append(thisCenter)  #TODO:Problematic because errors out when m00 is zero. May cause future bugs 
+            #     cv2.circle(self.DepthFrameRGB, (int(thisCenter[0]), int(thisCenter[1])), 5, (255,0,255), 1)            
+            
+        #self.centroids = centr
+        # print(self.centroids)
+        # print('\n')
+
+
+    def set_TopThresh(self,top_thresh):
+        self.TopThresh = top_thresh
+    def set_BottomThresh(self,bottom_thresh):
+        self.BottomThresh = bottom_thresh
 
     def projectGridInRGBImage(self):
         """!
@@ -203,7 +257,6 @@ class Camera():
         board_points_3D = np.column_stack((self.board_points, np.zeros(self.board_points.shape[0])))
         board_points_homogenous = np.column_stack((board_points_3D, np.ones(self.board_points.shape[0])))
 
-
         for point in board_points_homogenous:
             camera_coords = np.matmul(self.extrinsic_matrix,point).reshape(4)
             Zc = camera_coords[2]
@@ -211,9 +264,6 @@ class Camera():
             #print(pixel_coords)
             self.GridFrame = cv2.circle(self.GridFrame, (int(pixel_coords[0]), int(pixel_coords[1])), 5, (0,0,255), 1)
 
-
-
-        
 
 class ImageListener:
     def __init__(self, topic, camera):
@@ -281,9 +331,11 @@ class DepthListener:
         try:
             cv_depth = self.bridge.imgmsg_to_cv2(data, data.encoding)
             #cv_depth = cv2.rotate(cv_depth, cv2.ROTATE_180)
+            
         except CvBridgeError as e:
             print(e)
         self.camera.DepthFrameRaw = cv_depth
+
         #self.camera.DepthFrameRaw = self.camera.DepthFrameRaw/2
         self.camera.ColorizeDepthFrame()
 
@@ -319,6 +371,7 @@ class VideoThread(QThread):
             depth_frame = self.camera.convertQtDepthFrame()
             tag_frame = self.camera.convertQtTagImageFrame()
             self.camera.projectGridInRGBImage()
+            self.camera.detectBlocksInDepthImage()
             grid_frame = self.camera.convertQtGridFrame()
             if ((rgb_frame != None) & (depth_frame != None)):
                 self.updateFrame.emit(rgb_frame, depth_frame, tag_frame, grid_frame)
