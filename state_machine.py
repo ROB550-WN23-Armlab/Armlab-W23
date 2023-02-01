@@ -326,7 +326,7 @@ class StateMachine():
         """!
         @brief      Save camera image for asynchrnous CV testing
         """        
-        pass
+        
 
 
 

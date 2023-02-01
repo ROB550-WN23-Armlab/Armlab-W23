@@ -206,11 +206,20 @@ class Camera():
         cv2.rectangle(self.VideoFrame,(275,120),(1100,720), (255, 0, 0), 2)
         cv2.rectangle(self.VideoFrame, (600,414),(740,720), (255, 0, 0), 2)
 
+        kernel = np.ones((6,6), dtype = np.uint8)
+
+        #For stacked blocks, use np.max() to capture highest depth value of range, something like DepthFrameRaw[ymin:ymax, xmin:xmax]
+
+        thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+
         thresh = cv2.bitwise_and(cv2.inRange(self.DepthFrameRaw, lower, upper), mask)
 
-        self.DepthFrameRGB = thresh
+
+
+        cv2.imwrite("thresh.png",thresh) #Will write thresh to image that we can see, overwrites continuously but thats fine
 
         _, self.contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
         centr = []
         cv2.drawContours(self.DepthFrameRGB, self.contours, -1, (0,255,255), 3)        
         
