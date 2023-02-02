@@ -28,6 +28,8 @@ class Camera():
         """!
         @brief      Construcfalsets a new instance.
         """
+
+        #Frames indexed by (v,u) 
         self.VideoFrame = np.zeros((720, 1280, 3)).astype(np.uint8)
         self.GridFrame = np.zeros((720, 1280, 3)).astype(np.uint8)
         self.TagImageFrame = np.zeros((720, 1280, 3)).astype(np.uint8)
@@ -47,18 +49,35 @@ class Camera():
         self.tag_detections = np.array([])
         self.tag_locations = [[-250,-25,0],[250, -25,0], [250, 275,0],[-250,275,0], [475,-100, 155], [-375,400, 245], [75,200,62.5], [-475,-150,95]]
         self.dist_coeffs = np.array([.140,-.459,-.001,0,0.405])
-        """ block info """
+        
+        #Block Detection Info
         self.centroids = None
-        self.block_detections = np.array([]) #unused
+        self.contours = None
         self.homography = None
         self.TopThresh = 950
         self.BottomThresh = 987
+        self.thresh_queue = []
+        self.corner_coords_pixel = None
+        self.gridUL = None 
+        self.gridLR = None
+
+
+        self.colors = list(({'id': 'red', 'color': (10, 10, 127)},
+                            {'id': 'orange', 'color': (30, 75, 150)},
+                            {'id': 'yellow', 'color': (30, 150, 200)},
+                            {'id': 'green', 'color': (20, 60, 20)},
+                            {'id': 'blue', 'color': (100, 50, 0)},
+                            {'id': 'violet', 'color': (100, 40, 80)})
+)
+
 
         #Setup for grid projection
         ypos = 50.0 * np.arange(-2.5, 9.5, 1.0)
         xpos = 50.0 * np.arange(-9.0, 10.0, 1.0)
         xloc, yloc = np.meshgrid(xpos, ypos)
         self.board_points = np.array(np.meshgrid(xpos, ypos)).T.reshape(-1, 2)        
+
+     
 
     def processVideoFrame(self):
         """!
@@ -70,7 +89,7 @@ class Camera():
     def ColorizeDepthFrame(self):
         """!
         @brief Converts frame to colormaped formats in HSV and RGB
-        """
+        """        
         self.DepthFrameHSV[..., 0] = self.DepthFrameRaw >> 1
         self.DepthFrameHSV[..., 1] = 0xFF
         self.DepthFrameHSV[..., 2] = 0x9F
@@ -178,6 +197,20 @@ class Camera():
         """
         pass
 
+    def retrieve_area_color(self, data, contour, labels):
+        """!
+        @brief      Utility function to help @c blockDetector() detect colors
+        """         
+        mask = np.zeros(data.shape[:2], dtype="uint8")
+        cv2.drawContours(mask, [contour], -1, 255, -1)
+        mean = cv2.mean(data, mask=mask)[:3]
+        min_dist = (np.inf, None)
+        for label in labels:
+            d = np.linalg.norm(label["color"] - np.array(mean))
+            if d < min_dist[0]:
+                min_dist = (d, label["id"])
+        return min_dist[1]
+
     def blockDetector(self):
         """!
         @brief      Detect blocks from rgb
@@ -185,8 +218,20 @@ class Camera():
                     TODO: Implement your block detector here. You will need to locate blocks in 3D space and put their XYZ
                     locations in self.block_detections
         """        
-        
-
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        for contour in self.contours:
+            contour_color = self.retrieve_area_color(self.VideoFrame, contour, self.colors)
+            theta = cv2.minAreaRect(contour)[2]            
+            M = cv2.moments(contour)
+            if M['m00'] != 0.0:
+                cx = int(M['m10']/M['m00'])
+                cy = int(M['m01']/M['m00'])
+                cv2.putText(self.DepthFrameRGB, contour_color, (cx-30, cy+40), font, 1.0, (0,0,0), thickness=2)
+                cv2.putText(self.DepthFrameRGB, str(int(theta)), (cx, cy), font, 0.5, (255,255,255), thickness=2)
+                #cv2.drawContours(self.VideoFrame, self.contours, -1, (0,255,255), thickness=1)            
+            
+        #TODO:To display depth data try finding bounding box of contour, then index into DepthImageRaw for those values i.e. np.min(DepthImageRaw[ymin:ymax, xmin:xmax])
+        #TODO: Draw labels on something other than DepthFrameRGB, VideoFrame refreshes too fast or something so it doesnt work that well there :/
 
     def detectBlocksInDepthImage(self):
         """!
@@ -200,51 +245,52 @@ class Camera():
 
         #Mask out robot arm
         mask = np.zeros_like(self.DepthFrameRaw, dtype=np.uint8)
-        cv2.rectangle(mask, (275,120),(1100,720), 255, cv2.FILLED)
-        cv2.rectangle(mask, (600,414),(740,720), 0, cv2.FILLED)
-        
-        cv2.rectangle(self.VideoFrame,(275,120),(1100,720), (255, 0, 0), 2)
-        cv2.rectangle(self.VideoFrame, (600,414),(740,720), (255, 0, 0), 2)
 
-        kernel = np.ones((6,6), dtype = np.uint8)
+        if self.gridUL is not None and self.gridLR is not None:
+            cv2.rectangle(mask, self.gridUL, self.gridLR, 255, cv2.FILLED)
+            cv2.rectangle(mask, (600,414),(740,720), 0, cv2.FILLED)
 
-        #For stacked blocks, use np.max() to capture highest depth value of range, something like DepthFrameRaw[ymin:ymax, xmin:xmax]
+            cv2.rectangle(self.VideoFrame,self.gridUL, self.gridLR, (255, 0, 0), 2)
+            cv2.rectangle(self.VideoFrame, (600,414),(740,720), (255, 0, 0), 2)
 
-        thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+            self.thresh = cv2.bitwise_and(cv2.inRange(self.DepthFrameRaw, lower, upper), mask)
+            # self.thresh_queue.append(self.thresh) #Append only based off of inital threshholding instead of from queue so features dont carry on too long
+            # if len(self.thresh_queue) >=180:
+            #     print("Using dat or")
+            #     for thresh_instance in self.thresh_queue:
+            #         self.thresh = np.logical_and(self.thresh, thresh_instance)
+            #     self.thresh_queue.pop(0)
 
-        thresh = cv2.bitwise_and(cv2.inRange(self.DepthFrameRaw, lower, upper), mask)
+            #Morphological Filter
+            kernel = np.ones((6,6), dtype = np.uint8)
+            self.thresh = cv2.morphologyEx(self.thresh, cv2.MORPH_OPEN, kernel)
 
-
-
-        cv2.imwrite("thresh.png",thresh) #Will write thresh to image that we can see, overwrites continuously but thats fine
-
-        _, self.contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        centr = []
-        cv2.drawContours(self.DepthFrameRGB, self.contours, -1, (0,255,255), 3)        
-        
-        # for contour in self.contours:
-        
-        
-        #     rect = cv2.minAreaRect(contour)
-        #     box = cv2.boxPoints(rect)
-        #     box = np.int0(box)<
-        #     cv2.drawContours(self.DepthFrameRGB, [box], 0, (0,0,255), 2)
-
-        #     print("Rectangle data")
-        #     print(rect)
-        #     print("")
-
-            # Centroid Calculation using moment equations on contours   
-            #M = cv2.moments(contour)        
-            # if M["m00"] != 0.0:
-            #     thisCenter = M["m10"] / M["m00"] ,M["m01"] / M["m00"]
-            #     centr.append(thisCenter)  #TODO:Problematic because errors out when m00 is zero. May cause future bugs 
-            #     cv2.circle(self.DepthFrameRGB, (int(thisCenter[0]), int(thisCenter[1])), 5, (255,0,255), 1)            
+            _, self.contours, _ = cv2.findContours(self.thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             
-        #self.centroids = centr
-        # print(self.centroids)
-        # print('\n')
+            centr = []
+            cv2.drawContours(self.DepthFrameRGB, self.contours, -1, (0,255,255), 3)        
+            
+            for contour in self.contours:
+            
+                rect = cv2.minAreaRect(contour)
+                box = cv2.boxPoints(rect)
+                box = np.int0(box)
+                cv2.drawContours(self.DepthFrameRGB, [box], 0, (0,0,255), 2)
+
+                #print("Rectangle data")
+                #print(rect)
+                #print("")
+
+                # Centroid Calculation using moment equations on contours   
+                # M = cv2.moments(contour)        
+                # if M["m00"] != 0.0:
+                #     thisCenter = M["m10"] / M["m00"] ,M["m01"] / M["m00"]
+                #     centr.append(thisCenter)  #TODO:Problematic because errors out when m00 is zero. May cause future bugs 
+                #     cv2.circle(self.DepthFrameRGB, (int(thisCenter[0]), int(thisCenter[1])), 5, (255,0,255), 1)            
+                
+            self.centroids = centr
+            #print(self.centroids)
+            #print('\n')
 
 
     def set_TopThresh(self,top_thresh):
@@ -376,11 +422,17 @@ class VideoThread(QThread):
             cv2.namedWindow("Grid window", cv2.WINDOW_NORMAL)            
             time.sleep(0.5)
         while True:
+
+#--------------------------------------------------------------------------------------------------------#
+            #TODO: Integrate these functions into a process instead of running all the time
+            self.camera.detectBlocksInDepthImage()
+            if self.camera.contours is not None:
+                self.camera.blockDetector()
+#--------------------------------------------------------------------------------------------------------#
             rgb_frame = self.camera.convertQtVideoFrame()
             depth_frame = self.camera.convertQtDepthFrame()
             tag_frame = self.camera.convertQtTagImageFrame()
             self.camera.projectGridInRGBImage()
-            self.camera.detectBlocksInDepthImage()
             grid_frame = self.camera.convertQtGridFrame()
             if ((rgb_frame != None) & (depth_frame != None)):
                 self.updateFrame.emit(rgb_frame, depth_frame, tag_frame, grid_frame)

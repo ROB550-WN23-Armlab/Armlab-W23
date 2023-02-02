@@ -186,8 +186,8 @@ class StateMachine():
         model_points = np.zeros((8,3))
 
         """TODO Perform camera calibration routine here"""
-        #Extrinsic Matrix Calculation
 
+        #--------------Extrinsic Matrix Calculation--------------
         #Read in April Tag data
         for idx, tag in enumerate(self.camera.tag_detections.detections):
             x = tag.pose.pose.pose.position.x
@@ -199,7 +199,6 @@ class StateMachine():
         model_points=model_points.astype('float32')
         image_points = image_points[~np.all(image_points == 0, axis=1)]
         model_points = model_points[~np.all(model_points == 0, axis=1)]
-        
 
         #Get translation and rotation vector
         (success,rot_vec,trans_vec) = cv2.solvePnP(model_points,
@@ -234,7 +233,7 @@ class StateMachine():
         spatial_transform[0:3,0:3] = rotation_mat
         self.camera.extrinsic_matrix = spatial_transform
 
-        #Homography Transform calculations
+        #--------------Homography Transform calculations--------------
         corner_coords_world = np.array([[500,-175,0,1],[500,475,0,1], [-500, 475,0,1], [-500,-175,0,1]]) #[LR, UR, UL, LL]
         corner_coords_pixel = np.zeros((4,2))
         for i in range(4):
@@ -242,20 +241,15 @@ class StateMachine():
             Zc = corner_coords_camera_i[2]
             corner_coords_pixel[i,:] = 1/Zc*np.matmul(self.camera.intrinsic_matrix,corner_coords_camera_i[0:3].reshape((3,1)))[0:2].reshape(1,2)
         
+        #Saving corner positions for block detection masking
+        self.camera.gridUL = tuple(corner_coords_pixel[2,:].astype(int))
+        self.camera.gridLR = tuple(corner_coords_pixel[0,:].astype(int))
+
         """TODO Make calibration force user to click on corner points"""
         src_pts = corner_coords_pixel
         dest_pts = np.array([[1280,720], [1280,0], [0,0], [0,720]])
-        #src_pts = np.array([[1102,620], [1139,35], [178,63], [245,637]])
-        #dest_pts = corner_coords_pixel
-
-        print(src_pts)
-
-        print(dest_pts)
 
         self.camera.homography = cv2.findHomography(src_pts, dest_pts)[0]
-
-        print(self.camera.homography)
-        print('\n')
 
         self.status_message = "Calibration - Completed Calibration"
 
@@ -327,7 +321,23 @@ class StateMachine():
         @brief      Save camera image for asynchrnous CV testing
         """        
         
+        self.current_state = "save_image"
+        
+        #Thresholded Depth Image
+        cv2.imwrite("testing_thresh.png",self.camera.thresh)
+        
+        #Depth image as seen in gui
+        DepthFrameBGR = cv2.cvtColor(self.camera.DepthFrameRGB, cv2.COLOR_RGB2BGR)
+        cv2.imwrite("testing_DepthScreen.png", DepthFrameBGR)
 
+        #Raw Depth Frame
+        cv2.imwrite("testing_DepthRaw.png", self.camera.DepthFrameRaw)
+
+        #RGB Image
+        VidFrameBGR = cv2.cvtColor(self.camera.VideoFrame, cv2.COLOR_RGB2BGR)
+        cv2.imwrite("testing_RGB.png", VidFrameBGR)
+        
+        self.next_state = "idle"
 
 
 class StateMachineThread(QThread):
