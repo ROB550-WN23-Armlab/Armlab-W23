@@ -61,24 +61,20 @@ class Camera():
         self.gridUL = None 
         self.gridLR = None
 
-
+        #BGR format
         self.colors = list(({'id': 'red', 'color': (10, 10, 127)},
                             {'id': 'orange', 'color': (30, 75, 150)},
                             {'id': 'yellow', 'color': (30, 150, 200)},
                             {'id': 'green', 'color': (20, 60, 20)},
                             {'id': 'blue', 'color': (100, 50, 0)},
-                            {'id': 'violet', 'color': (100, 40, 80)})
-)
-
+                            {'id': 'violet', 'color': (100, 40, 80)},
+                            {'id': 'pink', 'color': (203,192,255)}))
 
         #Setup for grid projection
         ypos = 50.0 * np.arange(-2.5, 9.5, 1.0)
         xpos = 50.0 * np.arange(-9.0, 10.0, 1.0)
-        xloc, yloc = np.meshgrid(xpos, ypos)
-        self.board_points = np.array(np.meshgrid(xpos, ypos)).T.reshape(-1, 2)        
-
-     
-
+        self.board_points = np.array(np.meshgrid(xpos, ypos)).T.reshape(-1, 2)  
+      
     def processVideoFrame(self):
         """!
         @brief      Process a video frame
@@ -211,6 +207,20 @@ class Camera():
                 min_dist = (d, label["id"])
         return min_dist[1]
 
+
+    def block_height(self, data, contour):
+        """!
+        @brief      Utility function to determine depth of top of block
+        """
+        x,y,w,h = cv2.boundingRect(contour)
+        xmin = x-w/2
+        xmax = x+w/2
+        ymin = y-h/2
+        ymax = y+h/2
+
+        return np.min(data[ymin:ymax, xmin:xmax])
+
+
     def blockDetector(self):
         """!
         @brief      Detect blocks from rgb
@@ -219,19 +229,25 @@ class Camera():
                     locations in self.block_detections
         """        
         font = cv2.FONT_HERSHEY_SIMPLEX
+        contour_frame = self.DepthFrameRGB
+        
+        #TODO: Draw labels on something other than DepthFrameRGB, VideoFrame refreshes too fast or something so it doesnt work that well there :/
+
         for contour in self.contours:
+            #TODO: Check if VideoFrame is RGB or BGR
+            #if BGR: use this VideFrameRGB = cv2.cvtColor(self.camera.DepthFrameRGB, cv2.COLOR_BGR2RGB)
+            # and replace use of VideoFrame here to VideoFrameRGB
+
             contour_color = self.retrieve_area_color(self.VideoFrame, contour, self.colors)
             theta = cv2.minAreaRect(contour)[2]            
+            depth = self.block_height(self.DepthFrameRaw, contour)
             M = cv2.moments(contour)
             if M['m00'] != 0.0:
                 cx = int(M['m10']/M['m00'])
                 cy = int(M['m01']/M['m00'])
-                cv2.putText(self.DepthFrameRGB, contour_color, (cx-30, cy+40), font, 1.0, (0,0,0), thickness=2)
-                cv2.putText(self.DepthFrameRGB, str(int(theta)), (cx, cy), font, 0.5, (255,255,255), thickness=2)
-                #cv2.drawContours(self.VideoFrame, self.contours, -1, (0,255,255), thickness=1)            
-            
-        #TODO:To display depth data try finding bounding box of contour, then index into DepthImageRaw for those values i.e. np.min(DepthImageRaw[ymin:ymax, xmin:xmax])
-        #TODO: Draw labels on something other than DepthFrameRGB, VideoFrame refreshes too fast or something so it doesnt work that well there :/
+                cv2.putText(contour_frame, contour_color, (cx-30, cy+40), font, 1.0, (0,0,0), thickness=2)
+                cv2.putText(contour_frame, str(int(theta)), (cx, cy), font, 0.5, (255,255,255), thickness=2)
+                cv2.putText(contour_frame, "Depth " + str(depth), (cx-30, cy-40), font, 1.0, (0,0,0), thickness=2)
 
     def detectBlocksInDepthImage(self):
         """!
