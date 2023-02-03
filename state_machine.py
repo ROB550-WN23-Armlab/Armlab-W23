@@ -187,7 +187,9 @@ class StateMachine():
         model_points = np.zeros((8,3))
 
         """TODO Perform camera calibration routine here"""
-
+        #--------------Intrinsic Matrix Correction--------------
+        h, w = self.camera.VideoFrame.shape[:2]
+        self.camera.intrinsic_matrix, _ = cv2.getOptimalNewCameraMatrix(self.camera.intrinsic_matrix, self.camera.dist_coeffs, (w,h), 1, (w,h))
         #--------------Extrinsic Matrix Calculation--------------
         #Read in April Tag data
         for idx, tag in enumerate(self.camera.tag_detections.detections):
@@ -339,9 +341,8 @@ class StateMachine():
         
         self.current_state = "save_image"
         
-
         if not os.path.isdir('TestImages'): 
-            mkdir('TestImages')
+            os.mkdir('TestImages')
 
         #Thresholded Depth Image
         cv2.imwrite("TestImages/testing_thresh.png",self.camera.thresh)
