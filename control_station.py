@@ -115,8 +115,9 @@ class Gui(QMainWindow):
         self.ui.btnUser8.clicked.connect(partial(nxt_if_arm_init, 'save_waypoints'))
         
         self.ui.btnUser9.setText('Save Image')
-        self.ui.btnUser9.clicked.connect(partial(nxt_if_arm_init, 'save_image'))
 
+        self.ui.btnUser10.setText('Detect Blocks')
+        self.ui.btnUser10.clicked.connect(partial(nxt_if_arm_init, 'detect'))
 
 
 
@@ -251,16 +252,14 @@ class Gui(QMainWindow):
         @param      mouse_event  QtMouseEvent containing the pose of the mouse at the time of the event not current time
         """
 
-        self.invIntrinsicCameraMatrix = np.linalg.inv(self.camera.intrinsic_matrix)
-        self.invExtrinsicCameraMatrix = np.linalg.inv(self.camera.extrinsic_matrix)
         pt = mouse_event.pos()
         if self.camera.DepthFrameRaw.any() != 0:
             z = self.camera.DepthFrameRaw[pt.y()][pt.x()]
             self.ui.rdoutMousePixels.setText("(%.0f,%.0f,%.0f)" %
                                              (pt.x(), pt.y(), z))
 
-            CartesianInCamera = z*self.invIntrinsicCameraMatrix.dot(np.array([pt.x(),pt.y(),1]))
-            WorldPoint = self.invExtrinsicCameraMatrix.dot(np.array([CartesianInCamera[0],CartesianInCamera[1],CartesianInCamera[2],1]))
+            CartesianInCamera = z*self.camera.invIntrinsicCameraMatrix.dot(np.array([pt.x(),pt.y(),1]))
+            WorldPoint = self.camera.invExtrinsicCameraMatrix.dot(np.array([CartesianInCamera[0],CartesianInCamera[1],CartesianInCamera[2],1]))
             self.ui.rdoutMouseWorld.setText("(%.0f,%.0f,%.0f)" %
                                              (WorldPoint[0], WorldPoint[1], WorldPoint[2]))
         #print(self.CameraToWorldTransform)

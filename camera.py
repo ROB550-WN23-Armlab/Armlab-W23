@@ -34,6 +34,7 @@ class Camera():
         self.GridFrame = np.zeros((720, 1280, 3)).astype(np.uint8)
         self.TagImageFrame = np.zeros((720, 1280, 3)).astype(np.uint8)
         self.DepthFrameRaw = np.zeros((720, 1280)).astype(np.uint16)
+        self.DepthFrameProcessed = self.DepthFrameRaw.copy()
         """ Extra arrays for colormaping the depth image"""
         self.DepthFrameHSV = np.zeros((720, 1280, 3)).astype(np.uint8)
         self.DepthFrameRGB = np.array([])
@@ -42,29 +43,47 @@ class Camera():
         self.cameraCalibrated = False
         self.intrinsic_matrix = np.array([[900.543212,0,655.99074785],[0,900.8950195,353.4480286],[0,0,1]])#np.array([])
         self.extrinsic_matrix = np.linalg.inv(np.array([[0.9994,-0.0349,0,0],[-0.0341,-.9776,-.2079,336.55],[0.0073,0.2078,-0.9781,990.6],[0,0,0,1]]))#np.array([])
+        self.invIntrinsicCameraMatrix = np.linalg.inv(self.intrinsic_matrix)
+        self.invExtrinsicCameraMatrix = np.linalg.inv(self.extrinsic_matrix)
+        self.VectorUV = np.ones((3,1280*720))
+        for iu in range(1280):
+            for iv in range(720):
+                self.VectorUV[0,iv+720*(iu-1)-1] = iu
+                self.VectorUV[1,iv+720*(iu-1)-1] = iv
+        self.VectorUVinCamera = self.invIntrinsicCameraMatrix.dot(self.VectorUV)
         self.last_click = np.array([0, 0])
         self.new_click = False
         self.rgb_click_points = np.zeros((5, 2), int)
         self.depth_click_points = np.zeros((5, 2), int)
         self.tag_detections = np.array([])
-        self.tag_locations = [[-250,-25,0],[250, -25,0], [250, 275,0],[-250,275,0], [475,-100, 155], [-375,400, 245], [75,200,62.5], [-475,-150,95]]
+        self.tag_locations = [[-250.,-25.,0.],[250., -25.,0.], [250., 275.,0.],[-250.,275.,0.], [475.,-100., 155.], [-375.,400., 245.], [75.,200.,62.5], [-475.,-150.,95.]]
         self.dist_coeffs = np.array([.140,-.459,-.001,0,0.405])
-        
+
+        self.bar_location = np.zeros((4,2))
+        self.robot_sleep_loc = np.zeros((2,2))
+        self.calibrated = False
+
         #Block Detection Info
+        self.thresh = np.zeros_like(self.DepthFrameRaw)
         self.centroids = None
         self.contours = None
         self.homography = None
-        self.TopThresh = 950
-        self.BottomThresh = 987
-        self.thresh_queue = []
+        self.TopThresh = 50
+        self.BottomThresh = 11
         self.corner_coords_pixel = None
         self.gridUL = None 
         self.gridLR = None
+        self.blockFrames = None
+
+
+        #Debuggin nums
+        self.TotalCt = 0.
+        self.ZeroCt = 0.
 
         #BGR format
         self.colors = list(({'id': 'red', 'color': (10, 10, 127)},
                             {'id': 'orange', 'color': (30, 75, 150)},
-                            {'id': 'yellow', 'color': (30, 150, 200)},
+                            {'id': 'yellow', 'color': (30, 150, 200)}, 
                             {'id': 'green', 'color': (20, 60, 20)},
                             {'id': 'blue', 'color': (100, 50, 0)},
                             {'id': 'violet', 'color': (100, 40, 80)},
@@ -75,6 +94,37 @@ class Camera():
         xpos = 50.0 * np.arange(-9.0, 10.0, 1.0)
         self.board_points = np.array(np.meshgrid(xpos, ypos)).T.reshape(-1, 2)  
       
+    def WorldtoPixel(self, world_coord):
+        """!
+        @brief      Convert world coordinates to pixel coordinates, returns (u,v)
+        """        
+        world_pos = np.ones((4,1))
+        world_pos[0:3,0] = world_coord  
+        camera_coords = np.matmul(self.extrinsic_matrix,world_pos)  
+        Zc = camera_coords[2]
+        return 1/Zc*np.matmul(self.intrinsic_matrix,camera_coords[0:3].reshape((3,1)))[0:2].reshape(1,2)        
+
+    def PxFrame2WorldFrame(self, pixel_pos, theta):
+        """!
+        @brief      Expresses Pixel Frame to World Frame
+        """                
+
+        #
+        pxFrame = np.ones((3,1))
+        pxFrame[2,0] = pixel_pos[0]
+        pxFrame[1,0] = pixel_pos[1]
+
+        camFrame = np.zeros((4,4))
+        camFrame[0:3] = np.matmul(self.invIntrinsicCameraMatrix,pxFrame)
+        camFrame[0:3,0:3] = np.array([[np.cos(theta), -np.sin(theta), 0],
+                                       [np.sin(theta), np.cos(theta), 0],
+                                       [0, 0, 0]])
+        camFrame[3,3] = 1
+
+        worldFrame = np.matmul(self.invExtrinsicCameraMatrix, camFrame)
+
+        return worldFrame
+
     def processVideoFrame(self):
         """!
         @brief      Process a video frame
@@ -85,8 +135,9 @@ class Camera():
     def ColorizeDepthFrame(self):
         """!
         @brief Converts frame to colormaped formats in HSV and RGB
-        """        
-        self.DepthFrameHSV[..., 0] = self.DepthFrameRaw >> 1
+        """
+        self.DepthFrameHSV[..., 0] = self.thresh.astype(np.uint16) >> 1
+        # self.DepthFrameHSV[..., 0] = self.DepthFrameRaw >> 1
         self.DepthFrameHSV[..., 1] = 0xFF
         self.DepthFrameHSV[..., 2] = 0x9F
         self.DepthFrameRGB = cv2.cvtColor(self.DepthFrameHSV,
@@ -218,7 +269,7 @@ class Camera():
         ymin = y-h/2
         ymax = y+h/2
 
-        return np.min(data[ymin:ymax, xmin:xmax])
+        return np.amax(data[ymin:ymax, xmin:xmax])
 
 
     def blockDetector(self):
@@ -233,21 +284,26 @@ class Camera():
         
         #TODO: Draw labels on something other than DepthFrameRGB, VideoFrame refreshes too fast or something so it doesnt work that well there :/
 
+        self.blockFrames = []
         for contour in self.contours:
-            #TODO: Check if VideoFrame is RGB or BGR
-            #if BGR: use this VideFrameRGB = cv2.cvtColor(self.camera.DepthFrameRGB, cv2.COLOR_BGR2RGB)
-            # and replace use of VideoFrame here to VideoFrameRGB
-
-            contour_color = self.retrieve_area_color(self.VideoFrame, contour, self.colors)
+            VideoFrameBGR = cv2.cvtColor(self.VideoFrame, cv2.COLOR_RGB2BGR)
+            contour_color = self.retrieve_area_color(VideoFrameBGR, contour, self.colors)
             theta = cv2.minAreaRect(contour)[2]            
-            depth = self.block_height(self.DepthFrameRaw, contour)
+            #depth = self.block_height(self.DepthFrameProcessed, contour)
             M = cv2.moments(contour)
-            if M['m00'] != 0.0:
+            self.TotalCt += 1.
+            print("Percentage Zero: " + str(self.ZeroCt/self.TotalCt))
+            if cv2.contourArea(contour) != 0.0:
                 cx = int(M['m10']/M['m00'])
                 cy = int(M['m01']/M['m00'])
+                self.blockFrames.append(self.PxFrame2WorldFrame([cx,cy],theta))
                 cv2.putText(contour_frame, contour_color, (cx-30, cy+40), font, 1.0, (0,0,0), thickness=2)
                 cv2.putText(contour_frame, str(int(theta)), (cx, cy), font, 0.5, (255,255,255), thickness=2)
-                cv2.putText(contour_frame, "Depth " + str(depth), (cx-30, cy-40), font, 1.0, (0,0,0), thickness=2)
+                #cv2.putText(contour_frame, "Depth " + str(depth), (cx-30, cy-40), font, 1.0, (0,0,0), thickness=2)
+            else:
+                self.ZeroCt +=1.
+
+                
 
     def detectBlocksInDepthImage(self):
         """!
@@ -256,30 +312,32 @@ class Camera():
                     TODO: Implement a blob detector to find blocks in the depth image
         """        
 
-        lower = self.TopThresh
-        upper = self.BottomThresh
+        lower = self.BottomThresh#self.TopThresh
+        upper = self.TopThresh#self.BottomThresh
 
         #Mask out robot arm
         mask = np.zeros_like(self.DepthFrameRaw, dtype=np.uint8)
 
-        if self.gridUL is not None and self.gridLR is not None:
+        if self.calibrated:
+            #Grid Mask
             cv2.rectangle(mask, self.gridUL, self.gridLR, 255, cv2.FILLED)
-            cv2.rectangle(mask, (600,414),(740,720), 0, cv2.FILLED)
+            # cv2.rectangle(self.VideoFrame,self.gridUL, self.gridLR, (255, 0, 0), 2)
 
-            cv2.rectangle(self.VideoFrame,self.gridUL, self.gridLR, (255, 0, 0), 2)
-            cv2.rectangle(self.VideoFrame, (600,414),(740,720), (255, 0, 0), 2)
+            #Bar Masks
+            cv2.rectangle(mask, tuple(self.bar_location[0,:]), tuple(self.bar_location[1,:]), 0, cv2.FILLED)
+            cv2.rectangle(mask, tuple(self.bar_location[2,:]), tuple(self.bar_location[3,:]), 0, cv2.FILLED)
+            # cv2.rectangle(self.VideoFrame,tuple(self.bar_location[0,:]), tuple(self.bar_location[1,:]), (255, 0, 0), 2)
+            # cv2.rectangle(self.VideoFrame,tuple(self.bar_location[2,:]), tuple(self.bar_location[3,:]), (255, 0, 0), 2)
 
-            self.thresh = cv2.bitwise_and(cv2.inRange(self.DepthFrameRaw, lower, upper), mask)
-            # self.thresh_queue.append(self.thresh) #Append only based off of inital threshholding instead of from queue so features dont carry on too long
-            # if len(self.thresh_queue) >=180:
-            #     print("Using dat or")
-            #     for thresh_instance in self.thresh_queue:
-            #         self.thresh = np.logical_and(self.thresh, thresh_instance)
-            #     self.thresh_queue.pop(0)
+            #Robot Masks
+            cv2.rectangle(mask, tuple(self.robot_sleep_loc[0,:]), tuple(self.robot_sleep_loc[1,:]), 0, cv2.FILLED)
+            # cv2.rectangle(self.VideoFrame,tuple(self.robot_sleep_loc[0,:]), tuple(self.robot_sleep_loc[1,:]), (255, 0, 0), 2)
+
+            self.thresh = cv2.bitwise_and(cv2.inRange(self.DepthFrameProcessed, lower, upper), mask)
 
             #Morphological Filter
-            kernel = np.ones((6,6), dtype = np.uint8)
-            self.thresh = cv2.morphologyEx(self.thresh, cv2.MORPH_OPEN, kernel)
+            kernel = np.ones((8,8), dtype = np.uint8)
+            self.thresh = cv2.morphologyEx(self.thresh, cv2.MORPH_CLOSE, kernel)
 
             _, self.contours, _ = cv2.findContours(self.thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             
@@ -305,8 +363,6 @@ class Camera():
                 #     cv2.circle(self.DepthFrameRGB, (int(thisCenter[0]), int(thisCenter[1])), 5, (255,0,255), 1)            
                 
             self.centroids = centr
-            #print(self.centroids)
-            #print('\n')
 
 
     def set_TopThresh(self,top_thresh):
@@ -407,7 +463,11 @@ class DepthListener:
             print(e)
         self.camera.DepthFrameRaw = cv_depth
 
-        #self.camera.DepthFrameRaw = self.camera.DepthFrameRaw/2
+        DepthFrameVector = self.camera.DepthFrameRaw.T.reshape((1,1280*720))
+        CartesianInCamera = DepthFrameVector*self.camera.VectorUVinCamera
+        WorldPointZs = self.camera.invExtrinsicCameraMatrix[2,:].dot(np.concatenate((CartesianInCamera,np.ones((1,1280*720))),axis=0))
+        self.camera.DepthFrameProcessed = WorldPointZs.reshape((1280,720)).T
+
         self.camera.ColorizeDepthFrame()
 
 
@@ -438,7 +498,6 @@ class VideoThread(QThread):
             cv2.namedWindow("Grid window", cv2.WINDOW_NORMAL)            
             time.sleep(0.5)
         while True:
-
 #--------------------------------------------------------------------------------------------------------#
             #TODO: Integrate these functions into a process instead of running all the time
             self.camera.detectBlocksInDepthImage()

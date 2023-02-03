@@ -8,6 +8,7 @@ import rospy
 import cv2
 import math
 import sys
+import os
 
 class StateMachine():
     """!
@@ -233,17 +234,15 @@ class StateMachine():
         spatial_transform[0:3,0:3] = rotation_mat
         self.camera.extrinsic_matrix = spatial_transform
 
+        self.camera.invIntrinsicCameraMatrix = np.linalg.inv(self.camera.intrinsic_matrix)
+        self.camera.invExtrinsicCameraMatrix = np.linalg.inv(self.camera.extrinsic_matrix)
+        self.camera.VectorUVinCamera = self.camera.invIntrinsicCameraMatrix.dot(self.camera.VectorUV)
+
         #--------------Homography Transform calculations--------------
-        corner_coords_world = np.array([[500,-175,0,1],[500,475,0,1], [-500, 475,0,1], [-500,-175,0,1]]) #[LR, UR, UL, LL]
+        corner_coords_world = np.array([[500,-175,0],[500,475,0], [-500, 475,0], [-500,-175,0]]) #[LR, UR, UL, LL]
         corner_coords_pixel = np.zeros((4,2))
         for i in range(4):
-            corner_coords_camera_i = np.matmul(self.camera.extrinsic_matrix,corner_coords_world[i,:].reshape(4))  
-            Zc = corner_coords_camera_i[2]
-            corner_coords_pixel[i,:] = 1/Zc*np.matmul(self.camera.intrinsic_matrix,corner_coords_camera_i[0:3].reshape((3,1)))[0:2].reshape(1,2)
-        
-        #Saving corner positions for block detection masking
-        self.camera.gridUL = tuple(corner_coords_pixel[2,:].astype(int))
-        self.camera.gridLR = tuple(corner_coords_pixel[0,:].astype(int))
+            corner_coords_pixel[i,:] = self.camera.WorldtoPixel(corner_coords_world[i,:])
 
         """TODO Make calibration force user to click on corner points"""
         src_pts = corner_coords_pixel
@@ -251,6 +250,19 @@ class StateMachine():
 
         self.camera.homography = cv2.findHomography(src_pts, dest_pts)[0]
 
+        #Saving positions for block detection masking
+        self.camera.gridUL = tuple(corner_coords_pixel[2,:].astype(int))
+        self.camera.gridLR = tuple(corner_coords_pixel[0,:].astype(int))
+        barloc_world = 50*np.array([[-11,7,0],[-9.5, 0,0], [11, 7,0],[9.5, 0,0]])
+        robotsleep_world= 50*np.array([[-2.,3.,0.],[2., -3.5,0.]])
+        for i in range(4):
+            self.camera.bar_location[i,:] = self.camera.WorldtoPixel(barloc_world[i,:])
+        for i in range(2):
+            self.camera.robot_sleep_loc[i,:] = self.camera.WorldtoPixel(robotsleep_world[i,:])
+        self.camera.bar_location = self.camera.bar_location.astype(int)
+        self.camera.robot_sleep_loc = self.camera.robot_sleep_loc.astype(int) 
+
+        self.camera.calibrated = True
         self.status_message = "Calibration - Completed Calibration"
 
     """ TODO """
@@ -258,7 +270,12 @@ class StateMachine():
         """!
         @brief      Detect the blocks
         """
-        rospy.sleep(1)
+        self.current_state = "detect"
+        self.status_message = "Looking for blocks"
+        self.camera.detectBlocksInDepthImage()
+        if self.camera.contours is not None:
+            self.camera.blockDetector()
+        self.next_state = "idle"
 
     def initialize_rxarm(self):
         """!
@@ -315,7 +332,6 @@ class StateMachine():
         file1.close()
         self.next_state = "idle"
 
-    """ TODO """
     def save_image(self):
         """!
         @brief      Save camera image for asynchrnous CV testing
@@ -323,22 +339,29 @@ class StateMachine():
         
         self.current_state = "save_image"
         
+
+        if not os.path.isdir('TestImages'): 
+            mkdir('TestImages')
+
         #Thresholded Depth Image
-        cv2.imwrite("testing_thresh.png",self.camera.thresh)
+        cv2.imwrite("TestImages/testing_thresh.png",self.camera.thresh)
         
         #Depth image as seen in gui
         DepthFrameBGR = cv2.cvtColor(self.camera.DepthFrameRGB, cv2.COLOR_RGB2BGR)
-        cv2.imwrite("testing_DepthScreen.png", DepthFrameBGR)
+        cv2.imwrite("TestImages/testing_DepthScreen.png", DepthFrameBGR)
 
         #Raw Depth Frame
-        cv2.imwrite("testing_DepthRaw.png", self.camera.DepthFrameRaw)
+        cv2.imwrite("TestImages/testing_DepthRaw.png", self.camera.DepthFrameRaw)
 
         #RGB Image
         VidFrameBGR = cv2.cvtColor(self.camera.VideoFrame, cv2.COLOR_RGB2BGR)
-        cv2.imwrite("testing_RGB.png", VidFrameBGR)
+        cv2.imwrite("TestImages/testing_RGB.png", VidFrameBGR)
         
-        self.next_state = "idle"
+        #Depth Frame with world coord
+        cv2.imwrite("TestImages/testing_DepthProc.png", self.camera.DepthFrameProcessed)
 
+        self.next_state = "idle"
+        
 
 class StateMachineThread(QThread):
     """!
