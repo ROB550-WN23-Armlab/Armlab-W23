@@ -119,7 +119,8 @@ class Gui(QMainWindow):
         self.ui.btnUser10.setText('Detect Blocks')
         self.ui.btnUser10.clicked.connect(partial(nxt_if_arm_init, 'detect'))
 
-
+        self.ui.btnUser11.setText('Zero Depth Frame')
+        self.ui.btnUser11.clicked.connect(partial(nxt_if_arm_init, 'zero_depth'))
 
         # Sliders
         for sldr in self.joint_sliders:

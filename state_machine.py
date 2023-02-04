@@ -102,6 +102,9 @@ class StateMachine():
         if self.next_state == "save_image":
             self.save_image()
 
+        if self.next_state == "zero_depth":
+            self.zero_depth()
+
     """Functions run for each state"""
 
     def manual(self):
@@ -188,8 +191,18 @@ class StateMachine():
 
         """TODO Perform camera calibration routine here"""
         #--------------Intrinsic Matrix Correction--------------
-        h, w = self.camera.VideoFrame.shape[:2]
-        self.camera.intrinsic_matrix, _ = cv2.getOptimalNewCameraMatrix(self.camera.intrinsic_matrix, self.camera.dist_coeffs, (w,h), 1, (w,h))
+        # h, w = self.camera.VideoFrame.shape[:2]
+        # self.camera.intrinsic_matrix, roi = cv2.getOptimalNewCameraMatrix(self.camera.intrinsic_matrix, self.camera.dist_coeffs, (w,h), 1, (w,h))
+        
+        #Average calibrated CM
+        # self.camera.intrinsic_matrix = np.array([[924.148611,	0,	658.003399],
+        #                                         [0,	926.7882943,	359.9520597],
+        #                                         [0,	0,	1]])
+        
+        # self.camera.intrinsic_matrix = np.array([[908.247025,	0,	653.123343],
+        #                                             [0,	911.200571,	343.720744],
+        #                                             [0,	0,	1]])
+
         #--------------Extrinsic Matrix Calculation--------------
         #Read in April Tag data
         for idx, tag in enumerate(self.camera.tag_detections.detections):
@@ -198,8 +211,11 @@ class StateMachine():
             z = tag.pose.pose.pose.position.z
             image_points[idx,:] = (np.matmul(self.camera.intrinsic_matrix,np.array([x,y,z]).reshape(3,1))/z).reshape(3)
             model_points[idx,:] = np.array(self.camera.tag_locations[tag.id[0]-1])
+        #Take only desired slices, and assert that data type is float32
         image_points=image_points[:,0:2].astype('float32')
         model_points=model_points.astype('float32')
+
+        #Strips preallocated rows
         image_points = image_points[~np.all(image_points == 0, axis=1)]
         model_points = model_points[~np.all(model_points == 0, axis=1)]
 
@@ -207,7 +223,7 @@ class StateMachine():
         (success,rot_vec,trans_vec) = cv2.solvePnP(model_points,
                                                    image_points,
                                                    self.camera.intrinsic_matrix,
-                                                   self.camera.dist_coeffs,
+                                                   None,
                                                    flags=cv2.SOLVEPNP_ITERATIVE)
 
         #Use Rodrigues to convert rotataion vector into rotation matrix
@@ -341,28 +357,29 @@ class StateMachine():
         
         self.current_state = "save_image"
         
-        if not os.path.isdir('TestImages'): 
-            os.mkdir('TestImages')
-
         #Thresholded Depth Image
-        cv2.imwrite("TestImages/testing_thresh.png",self.camera.thresh)
+        cv2.imwrite("testing_thresh.png",self.camera.thresh)
         
         #Depth image as seen in gui
         DepthFrameBGR = cv2.cvtColor(self.camera.DepthFrameRGB, cv2.COLOR_RGB2BGR)
-        cv2.imwrite("TestImages/testing_DepthScreen.png", DepthFrameBGR)
+        cv2.imwrite("testing_DepthScreen.png", DepthFrameBGR)
 
         #Raw Depth Frame
-        cv2.imwrite("TestImages/testing_DepthRaw.png", self.camera.DepthFrameRaw)
+        cv2.imwrite("testing_DepthRaw.png", self.camera.DepthFrameRaw)
 
         #RGB Image
         VidFrameBGR = cv2.cvtColor(self.camera.VideoFrame, cv2.COLOR_RGB2BGR)
-        cv2.imwrite("TestImages/testing_RGB.png", VidFrameBGR)
+        cv2.imwrite("testing_RGB.png", VidFrameBGR)
         
         #Depth Frame with world coord
-        cv2.imwrite("TestImages/testing_DepthProc.png", self.camera.DepthFrameProcessed)
+        cv2.imwrite("testing_DepthProc.png", self.camera.DepthFrameProcessed)
 
         self.next_state = "idle"
         
+    def zero_depth(self):
+        self.current_state = "zero_depth"
+        self.camera.DepthFrameZero = self.camera.DepthFrameProcessed
+        self.next_state = "idle"
 
 class StateMachineThread(QThread):
     """!

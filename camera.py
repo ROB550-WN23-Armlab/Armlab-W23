@@ -35,6 +35,7 @@ class Camera():
         self.TagImageFrame = np.zeros((720, 1280, 3)).astype(np.uint8)
         self.DepthFrameRaw = np.zeros((720, 1280)).astype(np.uint16)
         self.DepthFrameProcessed = self.DepthFrameRaw.copy()
+        self.DepthFrameZero = np.zeros_like(self.DepthFrameProcessed)
         """ Extra arrays for colormaping the depth image"""
         self.DepthFrameHSV = np.zeros((720, 1280, 3)).astype(np.uint8)
         self.DepthFrameRGB = np.array([])
@@ -57,7 +58,7 @@ class Camera():
         self.depth_click_points = np.zeros((5, 2), int)
         self.tag_detections = np.array([])
         self.tag_locations = [[-250.,-25.,0.],[250., -25.,0.], [250., 275.,0.],[-250.,275.,0.], [475.,-100., 155.], [-375.,400., 245.], [75.,200.,62.5], [-475.,-150.,95.]]
-        self.dist_coeffs = np.array([.140,-.459,-.001,0,0.405])
+        self.dist_coeffs = np.array([0.125834,	-0.211044,	-0.001465,	0.00176,	0])#np.array([.140,-.459,-.001,0,0.405])#
 
         self.bar_location = np.zeros((4,2))
         self.robot_sleep_loc = np.zeros((2,2))
@@ -68,8 +69,8 @@ class Camera():
         self.centroids = None
         self.contours = None
         self.homography = None
-        self.TopThresh = 50
-        self.BottomThresh = 11
+        self.TopThresh = 200
+        self.BottomThresh = 15
         self.corner_coords_pixel = None
         self.gridUL = None 
         self.gridLR = None
@@ -81,13 +82,37 @@ class Camera():
         self.ZeroCt = 0.
 
         #BGR format
-        self.colors = list(({'id': 'red', 'color': (10, 10, 127)},
-                            {'id': 'orange', 'color': (30, 75, 150)},
-                            {'id': 'yellow', 'color': (30, 150, 200)}, 
-                            {'id': 'green', 'color': (20, 60, 20)},
-                            {'id': 'blue', 'color': (100, 50, 0)},
-                            {'id': 'violet', 'color': (100, 40, 80)},
-                            {'id': 'pink', 'color': (203,192,255)}))
+        self.colors_BGR = list(({'id': 'red', 'color': (10, 10, 127)},
+                                {'id': 'orange', 'color': (30, 75, 150)},
+                                {'id': 'yellow', 'color': (30, 150, 200)}, 
+                                {'id': 'green', 'color': (60, 95, 35)},
+                                {'id': 'blue', 'color': (100, 50, 0)},
+                                {'id': 'violet', 'color': (100, 40, 80)},
+                                {'id': 'pink', 'color': (203,192,255)}))
+
+        self.color_font = {'red': (10, 10, 127),
+                            'orange': (30, 75, 150),
+                            'yellow': (30, 150, 200),
+                            'green': (60, 95, 35),
+                            'blue': (100, 50, 0),
+                            'violet': (100, 40, 80),
+                            'pink': (203,192,255)}
+
+        self.color_contrast = {'red': 'green',
+                                'green': 'red',
+                                'violet': 'yellow',
+                                'yellow':'violet',
+                                'orange': 'blue',
+                                'blue': 'orange',
+                                'pink': 'yellow'}   
+        
+        #LAB format
+        self.colors_LAB = list(({'id': 'red', 'color': (155, 145)},
+                                {'id': 'orange', 'color': (160, 170)},
+                                {'id': 'yellow', 'color': (130, 180)}, 
+                                {'id': 'green', 'color': (105, 140)},
+                                {'id': 'blue', 'color': (128, 100)},
+                                {'id': 'violet', 'color': (135, 105)}))
 
         #Setup for grid projection
         ypos = 50.0 * np.arange(-2.5, 9.5, 1.0)
@@ -136,7 +161,7 @@ class Camera():
         """!
         @brief Converts frame to colormaped formats in HSV and RGB
         """
-        self.DepthFrameHSV[..., 0] = self.thresh.astype(np.uint16) >> 1
+        self.DepthFrameHSV[..., 0] = 6*self.thresh.astype(np.uint16) >> 1
         # self.DepthFrameHSV[..., 0] = self.DepthFrameRaw >> 1
         self.DepthFrameHSV[..., 1] = 0xFF
         self.DepthFrameHSV[..., 2] = 0x9F
@@ -244,19 +269,25 @@ class Camera():
         """
         pass
 
-    def retrieve_area_color(self, data, contour, labels):
+    def retrieve_area_color(self, data, contour, colorspace):
         """!
         @brief      Utility function to help @c blockDetector() detect colors
         """         
+
         mask = np.zeros(data.shape[:2], dtype="uint8")
         cv2.drawContours(mask, [contour], -1, 255, -1)
-        mean = cv2.mean(data, mask=mask)[:3]
+        if colorspace == "BGR":
+            labels = self.colors_BGR
+            mean = cv2.mean(data, mask=mask)[:3]
+        elif colorspace == "LAB":
+            labels = self.colors_LAB        
+            mean = cv2.mean(data, mask=mask)[:3][1:]
         min_dist = (np.inf, None)
         for label in labels:
             d = np.linalg.norm(label["color"] - np.array(mean))
             if d < min_dist[0]:
                 min_dist = (d, label["id"])
-        return min_dist[1]
+        return min_dist[1], mean
 
 
     def block_height(self, data, contour):
@@ -280,29 +311,41 @@ class Camera():
                     locations in self.block_detections
         """        
         font = cv2.FONT_HERSHEY_SIMPLEX
-        contour_frame = self.DepthFrameRGB
-        
+        contour_frame = self.VideoFrame
+        VFcopy = self.VideoFrame.copy()
         #TODO: Draw labels on something other than DepthFrameRGB, VideoFrame refreshes too fast or something so it doesnt work that well there :/
 
         self.blockFrames = []
         for contour in self.contours:
-            VideoFrameBGR = cv2.cvtColor(self.VideoFrame, cv2.COLOR_RGB2BGR)
-            contour_color = self.retrieve_area_color(VideoFrameBGR, contour, self.colors)
-            theta = cv2.minAreaRect(contour)[2]            
-            #depth = self.block_height(self.DepthFrameProcessed, contour)
+            VideoFrameLAB = cv2.cvtColor(VFcopy, cv2.COLOR_RGB2LAB)
+            contour_color, LAB = self.retrieve_area_color(VideoFrameLAB, contour, "LAB")
+            rect = cv2.minAreaRect(contour)
+            theta = rect[2]
+            box = cv2.boxPoints(rect)
+            box = np.int0(box)       
             M = cv2.moments(contour)
-            self.TotalCt += 1.
-            print("Percentage Zero: " + str(self.ZeroCt/self.TotalCt))
+            #self.TotalCt += 1.
+            #self.percZero = self.ZeroCt/self.TotalCt*100
+            #print("Percentage Zero: %.2f" %self.percZero)
             if cv2.contourArea(contour) != 0.0:
+                font_color = self.color_font[self.color_contrast[contour_color]]
                 cx = int(M['m10']/M['m00'])
                 cy = int(M['m01']/M['m00'])
                 self.blockFrames.append(self.PxFrame2WorldFrame([cx,cy],theta))
-                cv2.putText(contour_frame, contour_color, (cx-30, cy+40), font, 1.0, (0,0,0), thickness=2)
-                cv2.putText(contour_frame, str(int(theta)), (cx, cy), font, 0.5, (255,255,255), thickness=2)
-                #cv2.putText(contour_frame, "Depth " + str(depth), (cx-30, cy-40), font, 1.0, (0,0,0), thickness=2)
+                cv2.putText(contour_frame, contour_color, (cx-20, cy+40), font, 0.75,font_color , thickness=2)
+                cv2.putText(contour_frame, str(int(theta)), (cx-20, cy), font, 0.5, font_color, thickness=2)
+                #cv2.putText(contour_frame, "LAB: %0.1f, %0.1f" %LAB, (cx-20, cy-50), font, 0.5, (0,0,0), thickness=2)
+                cv2.drawContours(contour_frame,[box],0,font_color,2)
+                try:
+                    height = self.block_height(self.DepthFrameProcessed, contour)
+                    cv2.putText(contour_frame, "Height: %.2f" %height, (cx-40, cy-30), font, 0.5, font_color, thickness=2)
+                except:#Issues with empty contours i think
+                    pass
             else:
-                self.ZeroCt +=1.
-
+                #self.ZeroCt +=1.
+                pass
+        contour_frame = cv2.cvtColor(contour_frame, cv2.COLOR_RGB2BGR)
+        cv2.imwrite("block_labels.png",contour_frame)                
                 
 
     def detectBlocksInDepthImage(self):
@@ -336,35 +379,13 @@ class Camera():
             self.thresh = cv2.bitwise_and(cv2.inRange(self.DepthFrameProcessed, lower, upper), mask)
 
             #Morphological Filter
-            kernel = np.ones((8,8), dtype = np.uint8)
-            self.thresh = cv2.morphologyEx(self.thresh, cv2.MORPH_CLOSE, kernel)
+            kernel = np.ones((4,4), dtype = np.uint8)
+            #self.thresh = cv2.morphologyEx(self.thresh, cv2.MORPH_CLOSE, kernel)
+
+            self.thresh = cv2.morphologyEx(self.thresh, cv2.MORPH_OPEN, kernel)
 
             _, self.contours, _ = cv2.findContours(self.thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             
-            centr = []
-            cv2.drawContours(self.DepthFrameRGB, self.contours, -1, (0,255,255), 3)        
-            
-            for contour in self.contours:
-            
-                rect = cv2.minAreaRect(contour)
-                box = cv2.boxPoints(rect)
-                box = np.int0(box)
-                cv2.drawContours(self.DepthFrameRGB, [box], 0, (0,0,255), 2)
-
-                #print("Rectangle data")
-                #print(rect)
-                #print("")
-
-                # Centroid Calculation using moment equations on contours   
-                # M = cv2.moments(contour)        
-                # if M["m00"] != 0.0:
-                #     thisCenter = M["m10"] / M["m00"] ,M["m01"] / M["m00"]
-                #     centr.append(thisCenter)  #TODO:Problematic because errors out when m00 is zero. May cause future bugs 
-                #     cv2.circle(self.DepthFrameRGB, (int(thisCenter[0]), int(thisCenter[1])), 5, (255,0,255), 1)            
-                
-            self.centroids = centr
-
-
     def set_TopThresh(self,top_thresh):
         self.TopThresh = top_thresh
     def set_BottomThresh(self,bottom_thresh):
@@ -405,6 +426,7 @@ class ImageListener:
         except CvBridgeError as e:
             print(e)
         self.camera.VideoFrame = cv_image
+        #self.camera.VideoFrame = cv2.undistort(cv_image,self.camera.intrinsic_matrix, self.camera.dist_coeffs, None)
 
 
 class TagImageListener:
@@ -468,7 +490,7 @@ class DepthListener:
         CartesianInCamera = DepthFrameVector*self.camera.VectorUVinCamera
         WorldPointZs = self.camera.invExtrinsicCameraMatrix[2,:].dot(np.concatenate((CartesianInCamera,np.ones((1,1280*720))),axis=0))
         self.camera.DepthFrameProcessed = WorldPointZs.reshape((1280,720)).T
-
+        self.camera.DepthFrameProcessed -= self.camera.DepthFrameZero
         self.camera.ColorizeDepthFrame()
 
 
