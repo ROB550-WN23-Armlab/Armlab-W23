@@ -59,6 +59,7 @@ class Camera():
         self.tag_detections = np.array([])
         self.tag_locations = [[-250.,-25.,0.],[250., -25.,0.], [250., 275.,0.],[-250.,275.,0.], [475.,-100., 155.], [-375.,400., 245.], [75.,200.,62.5], [-475.,-150.,95.]]
         self.dist_coeffs = np.array([0.125834,	-0.211044,	-0.001465,	0.00176,	0])#np.array([.140,-.459,-.001,0,0.405])#
+        self.points_collected = 0
 
         self.bar_location = np.zeros((4,2))
         self.robot_sleep_loc = np.zeros((2,2))
