@@ -13,7 +13,7 @@ You will upgrade some functions and also implement others according to the comme
 """
 import numpy as np
 from functools import partial
-from kinematics import FK_dh, FK_pox, get_pose_from_T
+from kinematics import FK_dh, FK_pox, get_pose_from_T, IK_geometric
 import time
 import csv
 from builtins import super
@@ -200,6 +200,13 @@ class RXArm(InterbotixRobot):
         pose = get_pose_from_T(T)
         #print(np.sqrt(pose[0]**2 + pose[1]**2)) #stays constant when expected :)
         #print(get_pose_from_T(T))
+
+        #####
+        print('pose_world' + pose + '/n')
+        print(dh_joint + '/n')
+        q_angles = IK_geometric([0,100,200])
+        print(q_angles + '/n')
+        ####
 
         return pose
 

@@ -254,7 +254,7 @@ def IK_geometric(dh_params, pose):
     joint_angles_mod = np.array([q1,q2,q3,0.0,0.0])
     T_0_3 = FK_dh(dh_params, joint_angles_mod, 3)
     R_0_3 = T_0_3[0:3,0:3]
-    R_3_5 np.matmul(np.linalg.inv(R_0_3), R_0_5)
+    R_3_5 = np.matmul(np.linalg.inv(R_0_3), R_0_5)
 
     q4,q5,q6 = get_euler_angles_from_T(R_3_5)
 
