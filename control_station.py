@@ -114,14 +114,14 @@ class Gui(QMainWindow):
         self.ui.btnUser9.setText('Save Image')
         self.ui.btnUser8.clicked.connect(partial(nxt_if_arm_init, 'save_image'))
 
-        self.ui.btnUser10.setText('Detect Blocks')
-        self.ui.btnUser10.clicked.connect(partial(nxt_if_arm_init, 'detect'))
+        self.ui.btnUser10.setText('Click and Place')
+        self.ui.btnUser10.clicked.connect(partial(nxt_if_arm_init, 'click_place'))
 
         self.ui.btnUser11.setText('Zero Depth Frame')
         self.ui.btnUser11.clicked.connect(partial(nxt_if_arm_init, 'zero_depth'))
 
-        self.ui.btnUser11.setText('Slow Calibrate')
-        self.ui.btnUser11.clicked.connect(partial(nxt_if_arm_init, 'calibrate_slow'))
+        self.ui.btnUser12.setText('Slow Calibrate')
+        self.ui.btnUser12.clicked.connect(partial(nxt_if_arm_init, 'calibrate_slow'))
 
         # Sliders
         for sldr in self.joint_sliders:

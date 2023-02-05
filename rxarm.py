@@ -203,9 +203,10 @@ class RXArm(InterbotixRobot):
 
         #####
         # print('pose_world' + str(pose) + '\n')
-        print('actual_joint' + str(dh_joint) + '\n')
+        #print('actual_joint' + str(dh_joint) + '\n')
         q_angles = IK_geometric(self.dh_params,pose)
-        print('IK_joint' + str(q_angles) + '\n')
+        #print('IK_joint' + str(q_angles) + '\n')
+        # print('Error in IK' + str(np.array(dh_joint)-np.array(q_angles)) + '\n')
         ####
 
         return pose

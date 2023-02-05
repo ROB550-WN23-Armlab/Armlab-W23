@@ -108,6 +108,9 @@ class StateMachine():
 
         if self.next_state == "calibrate_slow":
             self.calibrate_slow()
+
+        if self.next_state == "click_place":
+            self.click_place()
     """Functions run for each state"""
 
     def manual(self):
@@ -384,12 +387,11 @@ class StateMachine():
         self.camera.DepthFrameZero = self.camera.DepthFrameProcessed
         self.next_state = "idle"
 
-    def calibate_slow(self):
+    def calibrate_slow(self):
         """!
         @brief      Gets the user input to perform the calibration
         """
         self.current_state = "calibrate_slow"
-        self.next_state = "idle"
 
 
         image_points = np.zeros((18,2))
@@ -403,7 +405,7 @@ class StateMachine():
                                     [-4., 4.5],
                                     [-4., 8.5],
                                     [0., 4.5],
-                                    [0., 8.5]
+                                    [0., 8.5],
                                     [4., -2.5],
                                     [4., 1.5],
                                     [4., 4.5],
@@ -431,9 +433,10 @@ class StateMachine():
                 self.camera.points_collected +=1
            
         else:
+            self.camera.points_collected = 0
             self.camera.invIntrinsicCameraMatrix = np.linalg.inv(self.camera.intrinsic_matrix)
             for i in range(image_points.shape[0]):
-                uv1 = np.column_stack(image_points[i,:],np.array([1]))
+                uv1 = np.column_stack((image_points[i,:],np.array([1])))
                 v = uv1[0]
                 u = uv1[1]
                 uv1 = uv1.reshape((3,1))
@@ -489,7 +492,15 @@ class StateMachine():
             self.camera.robot_sleep_loc = self.camera.robot_sleep_loc.astype(int) 
 
             self.camera.calibrated = True
+            self.next_state = "idle"
+
             self.status_message = "Calibration - Completed Calibration"
+
+    def click_place(self):
+        self.current_state = "click_place"
+        
+        #if placed:
+            #self.next_state = "idle"
 class StateMachineThread(QThread):
     """!
     @brief      Runs the state machine
