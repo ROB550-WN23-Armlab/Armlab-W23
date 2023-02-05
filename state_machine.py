@@ -47,6 +47,7 @@ class StateMachine():
         self.thresh = 0.05
         self.long_time = 0
         self.record = 0
+        self.pts_obtained = 0
 
     def set_next_state(self, state):
         """!
