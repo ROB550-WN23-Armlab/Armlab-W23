@@ -47,6 +47,7 @@ class StateMachine():
         self.thresh = 0.05
         self.long_time = 0
         self.record = 0
+        self.pts_obtained = 0
 
     def set_next_state(self, state):
         """!
@@ -105,6 +106,8 @@ class StateMachine():
         if self.next_state == "zero_depth":
             self.zero_depth()
 
+        if self.next_state == "calibrate_slow":
+            self.calibrate_slow()
     """Functions run for each state"""
 
     def manual(self):
@@ -181,7 +184,7 @@ class StateMachine():
 
     def calibrate(self):
         """!
-        @brief      Gets the user input to perform the calibration
+        @brief      Auto calibration using april tags
         """
         self.current_state = "calibrate"
         self.next_state = "idle"
@@ -381,6 +384,112 @@ class StateMachine():
         self.camera.DepthFrameZero = self.camera.DepthFrameProcessed
         self.next_state = "idle"
 
+    def calibate_slow(self):
+        """!
+        @brief      Gets the user input to perform the calibration
+        """
+        self.current_state = "calibrate_slow"
+        self.next_state = "idle"
+
+
+        image_points = np.zeros((18,2))
+        camera_points = np.zeros((18,3))
+        world_points = 50*np.array([[-9., -2.5],
+                                    [-9., 1.5],
+                                    [-9., 4.5],
+                                    [-9., 8.5],
+                                    [-4., -2.5],
+                                    [-4., 1.5],
+                                    [-4., 4.5],
+                                    [-4., 8.5],
+                                    [0., 4.5],
+                                    [0., 8.5]
+                                    [4., -2.5],
+                                    [4., 1.5],
+                                    [4., 4.5],
+                                    [4., 8.5],
+                                    [9., -2.5],
+                                    [9., 1.5],
+                                    [9., 4.5],
+                                    [9., 8.5]])
+
+        """TODO Perform camera calibration routine here"""
+        '''Extrinsics calculation
+        user should click on some specified grid coordinates in a specific order ->this goes in image_points
+        image points need to be backtracked into camera points using intrinsic matrix
+
+        refer to stanford paper for how to solve for rotation and translation matrix given the camera points and world points
+        '''
+        if self.camera.points_collected <=18:
+            if self.camera.new_click:
+                image_points[self.camera.points_collected-1,:] = self.camera.last_click
+                self.camera.new_click = False
+            else:
+                self.status_message = "Please click on: " + np.array2string(world_points[self.camera.points_collected], formatter={'float_kind':lambda x: "%.1f" % x})
+            #Force it to move on once we have all points
+            if self.camera.points_collected == 18:
+                self.camera.points_collected +=1
+           
+        else:
+            self.camera.invIntrinsicCameraMatrix = np.linalg.inv(self.camera.intrinsic_matrix)
+            for i in range(image_points.shape[0]):
+                uv1 = np.column_stack(image_points[i,:],np.array([1]))
+                v = uv1[0]
+                u = uv1[1]
+                uv1 = uv1.reshape((3,1))
+                Zc = self.camera.DepthCameraRaw[v,u]
+                camera_points[i,:] = Zc*np.matmul(self.camera.invIntrinsicCameraMatrix,uv1)
+
+            camera_mean = np.mean(camera_points, axis = 0)
+            world_mean = np.mean(world_points, axis = 0)
+
+            correlation = np.zeros((world_mean.shape[0],camera_mean.shape[0]))
+            for i in range(world_points.shape[0]):
+                world_ci = world_points[i,:].reshape((3,1)) - world_mean.reshape((3,1))
+                camera_ci = camera_points[i,:].reshape((3,1)) - camera_mean.reshape((3,1))
+                correlation += np.matmul(world_ci, camera_ci.T)
+            U_rot, s_rot, VT_rot = np.linalg.svd(correlation, full_mamtrices = False)
+            R = np.linalg.matmul(VT_rot.T, U_rot.T)
+
+            if np.linalg.det(R) == 1:
+                pass
+            elif np.linalg.det(R) == -1:
+                V = VT_rot.T
+                V[:,2] *= -1
+                R = np.linalg.matmul(V, U_rot.T)
+
+            T = camera_mean.T - np.matmul(R, world_mean.T)
+            
+            self.camera.extrinsic_matrix = np.zeros((4,4))
+            self.camera.extrinsic_matrix[-1,-1] = 1
+            self.camera.extrinsic_matrix[:3,:3] = R
+            self.camera.extrinsic_matrix[:3,-1] = T
+            #--------------Homography Transform calculations--------------
+            corner_coords_world = np.array([[500,-175,0],[500,475,0], [-500, 475,0], [-500,-175,0]]) #[LR, UR, UL, LL]
+            corner_coords_pixel = np.zeros((4,2))
+            for i in range(4):
+                corner_coords_pixel[i,:] = self.camera.WorldtoPixel(corner_coords_world[i,:])
+
+            """TODO Make calibration force user to click on corner points"""
+            src_pts = corner_coords_pixel
+            dest_pts = np.array([[1280,720], [1280,0], [0,0], [0,720]])
+
+            self.camera.homography = cv2.findHomography(src_pts, dest_pts)[0]
+
+            #Saving positions for block detection masking
+            self.camera.gridUL = tuple(corner_coords_pixel[2,:].astype(int))
+            self.camera.gridLR = tuple(corner_coords_pixel[0,:].astype(int))
+            barloc_world = 50*np.array([[-11,7,0],[-9.5, 0,0], [11, 7,0],[9.5, 0,0]])
+            robotsleep_world= 50*np.array([[-2.,3.,0.],[2., -3.5,0.]])
+            for i in range(4):
+                self.camera.bar_location[i,:] = self.camera.WorldtoPixel(barloc_world[i,:])
+            for i in range(2):
+                self.camera.robot_sleep_loc[i,:] = self.camera.WorldtoPixel(robotsleep_world[i,:])
+            self.camera.bar_location = self.camera.bar_location.astype(int)
+            self.camera.robot_sleep_loc = self.camera.robot_sleep_loc.astype(int) 
+
+            self.camera.calibrated = True
+            self.status_message = "Calibration - Completed Calibration"
 class StateMachineThread(QThread):
     """!
     @brief      Runs the state machine

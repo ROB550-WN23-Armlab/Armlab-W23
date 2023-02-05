@@ -59,6 +59,7 @@ class Camera():
         self.tag_detections = np.array([])
         self.tag_locations = [[-250.,-25.,0.],[250., -25.,0.], [250., 275.,0.],[-250.,275.,0.], [475.,-100., 155.], [-375.,400., 245.], [75.,200.,62.5], [-475.,-150.,95.]]
         self.dist_coeffs = np.array([0.125834,	-0.211044,	-0.001465,	0.00176,	0])#np.array([.140,-.459,-.001,0,0.405])#
+        self.points_collected = 0
 
         self.bar_location = np.zeros((4,2))
         self.robot_sleep_loc = np.zeros((2,2))
@@ -114,6 +115,9 @@ class Camera():
                                 {'id': 'blue', 'color': (128, 100)},
                                 {'id': 'violet', 'color': (135, 105)}))
 
+        #Homography calibration
+        self.corners_collected = 0
+        self.corner_pts = np.zeros((4,2))
         #Setup for grid projection
         ypos = 50.0 * np.arange(-2.5, 9.5, 1.0)
         xpos = 50.0 * np.arange(-9.0, 10.0, 1.0)
