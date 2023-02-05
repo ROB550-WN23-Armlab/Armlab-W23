@@ -213,7 +213,7 @@ def IK_geometric(dh_params, pose):
     l1 = 205.73
     l2 = 200
     d1 = 103.91
-    angle_offset = 90-math.atan2(50,200)
+    angle_offset = math.pi/2 - math.atan2(50,200)
     phi = pose[3]
     theta = pose[4]
     psi = pose[5]
@@ -221,21 +221,21 @@ def IK_geometric(dh_params, pose):
     R_0_5 = get_R_from_euler_angles(phi,theta,psi)
 
     # End Effector Location
-    pos_ee = np.array([pose[0],pose[1],pose[2]])
+    pos_ee = np.array([[pose[0]],[pose[1]],[pose[2]]])
     x = pos_ee[0]
     y = pos_ee[1]
     z = pos_ee[2]
 
-    link6_len = dh_params[0][2]; 
-    pos_wrist = pos_ee - link6_len*np.matmul(R,np.array[[0],[0],[1]])
+    link6_len = dh_params[4][2]; 
+    pos_wrist = pos_ee - link6_len*np.matmul(R_0_5,np.array([[0],[0],[1]]))
 
     # Wrist location
     ox = pos_wrist[0]
     oy = pos_wrist[1]
     oz = pos_wrist[2]
 
-    planar_x= math.sqrt(ox**2 + oy**2)
-    planar_y= pose_wrist[2] - d1
+    planar_x = math.sqrt(ox**2 + oy**2)
+    planar_y = oz - d1
     # Q1 - Calculation 
     q1 = math.atan2(oy,ox) - np.pi/2.0
     if q1 < -np.pi:
@@ -243,7 +243,7 @@ def IK_geometric(dh_params, pose):
 
     # Q3 - Calculation
     theta_3 = math.acos(((planar_x**2 + planar_y**2) - l1**2 -l2**2)/(2*l1*l2))
-    theta_3 = -theta_3
+    theta_3 = -theta_3    # Choosing Elbow Up 
     q3 = theta_3 + angle_offset
 
     # Q2 - Calculation
@@ -258,4 +258,4 @@ def IK_geometric(dh_params, pose):
 
     q4,q5,q6 = get_euler_angles_from_T(R_3_5)
 
-    return [q1,q2,q3,q5,q6]
+    return [q1,q2,q3,q4,q6-math.pi/2]
