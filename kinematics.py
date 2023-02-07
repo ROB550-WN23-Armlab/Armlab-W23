@@ -259,3 +259,139 @@ def IK_geometric(dh_params, pose):
     q4,q5,q6 = get_euler_angles_from_T(R_3_5)
 
     return [q1,q2,q3,q4,q6-math.pi/2]
+
+
+
+def IK_geometric_two(dh_params, pose, direction):
+    """!
+    @brief      Get all possible joint configs that produce the pose.
+
+                TODO: Convert a desired end-effector pose vector as np.array to joint angles
+
+    @param      dh_params  The dh parameters
+    @param      pose       The desired pose vector as np.array 
+    @param      direction  The direction of EE, it could be "flat" or "down"
+
+    @return     All four possible joint configurations in a numpy array 4x4 where each row is one possible joint
+                configuration
+    """
+    l1 = 205.73
+    l2 = 200
+    d1 = 103.91
+    angle_offset = math.pi/2 - math.atan2(50,200)
+    # phi = pose[3]
+    # theta = pose[4]
+    # psi = pose[5]
+
+    if direction=="down":
+        R_0_5 = rotation_matrix(-90,-90,-90,'xzy')
+    elif direction=="flat":
+        R_0_5 = rotation_matrix(-90,-90,0,'xzy')
+
+    # R_0_5 = get_R_from_euler_angles(phi,theta,psi)
+
+    # End Effector Location
+    pos_ee = np.array([[pose[0]],[pose[1]],[pose[2]]])
+    x = pos_ee[0]
+    y = pos_ee[1]
+    z = pos_ee[2]
+
+    link6_len = dh_params[4][2]; 
+    pos_wrist = pos_ee - link6_len*np.matmul(R_0_5,np.array([[0],[0],[1]]))
+
+    # Wrist location
+    ox = pos_wrist[0]
+    oy = pos_wrist[1]
+    oz = pos_wrist[2]
+
+    planar_x = math.sqrt(ox**2 + oy**2)
+    planar_y = oz - d1
+    # Q1 - Calculation 
+    q1 = math.atan2(oy,ox) - np.pi/2.0
+    if q1 < -np.pi:
+        q1 = q1 + 2*np.pi
+
+    # Q3 - Calculation
+    theta_3 = math.acos(((planar_x**2 + planar_y**2) - l1**2 -l2**2)/(2*l1*l2))
+    theta_3 = -theta_3    # Choosing Elbow Up 
+    q3 = theta_3 + angle_offset
+
+    # Q2 - Calculation
+    theta_2 = math.atan2(planar_y,planar_x) - math.atan2(l2*math.sin(theta_3),l1+l2*math.cos(theta_3))
+    q2 = angle_offset - theta_2
+
+    ## For Q3, Q4, Q5 calculations
+    joint_angles_mod = np.array([q1,q2,q3,0.0,0.0])
+    T_0_3 = FK_dh(dh_params, joint_angles_mod, 3)
+    R_0_3 = T_0_3[0:3,0:3]
+    R_3_5 = np.matmul(np.linalg.inv(R_0_3), R_0_5)
+
+    q4,q5,q6 = get_euler_angles_from_T(R_3_5)
+
+    return [q1,q2,q3,q4,q6-math.pi/2]
+
+def rotation_matrix(theta1, theta2, theta3, order='xyz'):
+    """
+    input
+        theta1, theta2, theta3 = rotation angles in rotation order (degrees)
+        oreder = rotation order of x,y,z　e.g. XZY rotation -- 'xzy'
+    output
+        3x3 rotation matrix (numpy array)
+    """
+    c1 = np.cos(theta1 * np.pi / 180)
+    s1 = np.sin(theta1 * np.pi / 180)
+    c2 = np.cos(theta2 * np.pi / 180)
+    s2 = np.sin(theta2 * np.pi / 180)
+    c3 = np.cos(theta3 * np.pi / 180)
+    s3 = np.sin(theta3 * np.pi / 180)
+
+    if order == 'xzx':
+        matrix=np.array([[c2, -c3*s2, s2*s3],
+                         [c1*s2, c1*c2*c3-s1*s3, -c3*s1-c1*c2*s3],
+                         [s1*s2, c1*s3+c2*c3*s1, c1*c3-c2*s1*s3]])
+    elif order=='xyx':
+        matrix=np.array([[c2, s2*s3, c3*s2],
+                         [s1*s2, c1*c3-c2*s1*s3, -c1*s3-c2*c3*s1],
+                         [-c1*s2, c3*s1+c1*c2*s3, c1*c2*c3-s1*s3]])
+    elif order=='yxy':
+        matrix=np.array([[c1*c3-c2*s1*s3, s1*s2, c1*s3+c2*c3*s1],
+                         [s2*s3, c2, -c3*s2],
+                         [-c3*s1-c1*c2*s3, c1*s2, c1*c2*c3-s1*s3]])
+    elif order=='yzy':
+        matrix=np.array([[c1*c2*c3-s1*s3, -c1*s2, c3*s1+c1*c2*s3],
+                         [c3*s2, c2, s2*s3],
+                         [-c1*s3-c2*c3*s1, s1*s2, c1*c3-c2*s1*s3]])
+    elif order=='zyz':
+        matrix=np.array([[c1*c2*c3-s1*s3, -c3*s1-c1*c2*s3, c1*s2],
+                         [c1*s3+c2*c3*s1, c1*c3-c2*s1*s3, s1*s2],
+                         [-c3*s2, s2*s3, c2]])
+    elif order=='zxz':
+        matrix=np.array([[c1*c3-c2*s1*s3, -c1*s3-c2*c3*s1, s1*s2],
+                         [c3*s1+c1*c2*s3, c1*c2*c3-s1*s3, -c1*s2],
+                         [s2*s3, c3*s2, c2]])
+    elif order=='xyz':
+        matrix=np.array([[c2*c3, -c2*s3, s2],
+                         [c1*s3+c3*s1*s2, c1*c3-s1*s2*s3, -c2*s1],
+                         [s1*s3-c1*c3*s2, c3*s1+c1*s2*s3, c1*c2]])
+    elif order=='xzy':
+        matrix=np.array([[c2*c3, -s2, c2*s3],
+                         [s1*s3+c1*c3*s2, c1*c2, c1*s2*s3-c3*s1],
+                         [c3*s1*s2-c1*s3, c2*s1, c1*c3+s1*s2*s3]])
+    elif order=='yxz':
+        matrix=np.array([[c1*c3+s1*s2*s3, c3*s1*s2-c1*s3, c2*s1],
+                         [c2*s3, c2*c3, -s2],
+                         [c1*s2*s3-c3*s1, c1*c3*s2+s1*s3, c1*c2]])
+    elif order=='yzx':
+        matrix=np.array([[c1*c2, s1*s3-c1*c3*s2, c3*s1+c1*s2*s3],
+                         [s2, c2*c3, -c2*s3],
+                         [-c2*s1, c1*s3+c3*s1*s2, c1*c3-s1*s2*s3]])
+    elif order=='zyx':
+        matrix=np.array([[c1*c2, c1*s2*s3-c3*s1, s1*s3+c1*c3*s2],
+                         [c2*s1, c1*c3+s1*s2*s3, c3*s1*s2-c1*s3],
+                         [-s2, c2*s3, c2*c3]])
+    elif order=='zxy':
+        matrix=np.array([[c1*c3-s1*s2*s3, -c2*s1, c1*s3+c3*s1*s2],
+                         [c3*s1+c1*s2*s3, c1*c2, s1*s3-c1*c3*s2],
+                         [-c2*s3, s2, c2*c3]])
+
+    return matrix
