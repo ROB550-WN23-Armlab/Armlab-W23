@@ -13,7 +13,7 @@ You will upgrade some functions and also implement others according to the comme
 """
 import numpy as np
 from functools import partial
-from kinematics import FK_dh, FK_pox, get_pose_from_T, IK_geometric
+from kinematics import FK_dh, FK_pox, get_pose_from_T, IK_geometric, IK_geometric_two
 import time
 import csv
 from builtins import super

@@ -99,29 +99,32 @@ class Gui(QMainWindow):
         self.ui.btnUser4.setText('Execute')
         self.ui.btnUser4.clicked.connect(partial(nxt_if_arm_init, 'execute'))        
         
-        self.ui.btnUser5.setText('Add Waypoint Closed Gripper')
-        self.ui.btnUser5.clicked.connect(partial(nxt_if_arm_init, 'save_waypoint_close'))
+        # self.ui.btnUser5.setText('Add Waypoint Closed Gripper')
+        # self.ui.btnUser5.clicked.connect(partial(nxt_if_arm_init, 'save_waypoint_close'))
 
-        self.ui.btnUser6.setText('Add Waypoint Open Gripper')
-        self.ui.btnUser6.clicked.connect(partial(nxt_if_arm_init, 'save_waypoint_open'))
+        # self.ui.btnUser6.setText('Add Waypoint Open Gripper')
+        # self.ui.btnUser6.clicked.connect(partial(nxt_if_arm_init, 'save_waypoint_open'))
 
-        self.ui.btnUser7.setText('Clear All Waypoints')
-        self.ui.btnUser7.clicked.connect(partial(nxt_if_arm_init, 'clear_waypoints'))
+        # self.ui.btnUser7.setText('Clear All Waypoints')
+        # self.ui.btnUser7.clicked.connect(partial(nxt_if_arm_init, 'clear_waypoints'))
 
-        self.ui.btnUser8.setText('Save Waypoints')
-        self.ui.btnUser8.clicked.connect(partial(nxt_if_arm_init, 'save_waypoints'))
+        # self.ui.btnUser8.setText('Save Waypoints')
+        # self.ui.btnUser8.clicked.connect(partial(nxt_if_arm_init, 'save_waypoints'))
         
-        self.ui.btnUser9.setText('Save Image')
-        self.ui.btnUser8.clicked.connect(partial(nxt_if_arm_init, 'save_image'))
+        self.ui.btnUser5.setText('Save Image')
+        self.ui.btnUser5.clicked.connect(partial(nxt_if_arm_init, 'save_image'))
 
-        self.ui.btnUser10.setText('Click and Place')
-        self.ui.btnUser10.clicked.connect(partial(nxt_if_arm_init, 'click_place'))
+        self.ui.btnUser6.setText('Click and Place')
+        self.ui.btnUser6.clicked.connect(partial(nxt_if_arm_init, 'click_place'))
 
-        self.ui.btnUser11.setText('Zero Depth Frame')
-        self.ui.btnUser11.clicked.connect(partial(nxt_if_arm_init, 'zero_depth'))
+        self.ui.btnUser7.setText('Zero Depth Frame')
+        self.ui.btnUser7.clicked.connect(partial(nxt_if_arm_init, 'zero_depth'))
 
-        self.ui.btnUser12.setText('Slow Calibrate')
-        self.ui.btnUser12.clicked.connect(partial(nxt_if_arm_init, 'calibrate_slow'))
+        self.ui.btnUser8.setText('Slow Calibrate')
+        self.ui.btnUser8.clicked.connect(partial(nxt_if_arm_init, 'calibrate_slow'))
+
+        self.ui.btnUser9.setText('Detect Block')
+        self.ui.btnUser9.clicked.connect(partial(nxt_if_arm_init, 'detect'))
 
         # Sliders
         for sldr in self.joint_sliders:
@@ -280,6 +283,7 @@ class Gui(QMainWindow):
         self.camera.new_click = True
         if self.sm.current_state == "calibrate_slow":
             self.camera.points_collected +=1
+            
 
     def initRxarm(self):
         """!

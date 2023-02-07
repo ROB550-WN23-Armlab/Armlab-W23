@@ -9,6 +9,7 @@ import cv2
 import math
 import sys
 import os
+from kinematics import IK_geometric_two
 
 class StateMachine():
     """!
@@ -41,13 +42,37 @@ class StateMachine():
             [0.75*np.pi/2,   -0.5,     -0.3,     0.0,       np.pi/2],
             [np.pi/2,         0.5,     0.3,      0.0,     0.0],
             [0.0,             0.0,     0.0,      0.0,     0.0]]
-        self.current_waypoint = -1
+        self.current_waypoint = 0
         self.waypoint_grip = [0,0,0,0,0,0,0,0,0,0] #Read 1 as closed and 0 as open
         self.err = 0
         self.thresh = 0.05
         self.long_time = 0
         self.record = 0
         self.pts_obtained = 0
+
+        #Slow Calibration stuff
+
+        self.image_points = np.ones((18,3))
+        self.camera_points = np.zeros((18,3))
+        self.world_points = 50*np.array([[-9., -2.5],
+                                    [-9., 1.5],
+                                    [-9., 4.5],
+                                    [-9., 8.5],
+                                    [-4., -2.5],
+                                    [-4., 1.5],
+                                    [-4., 4.5],
+                                    [-4., 8.5],
+                                    [0., 4.5],
+                                    [0., 8.5],
+                                    [4., -2.5],
+                                    [4., 1.5],
+                                    [4., 4.5],
+                                    [4., 8.5],
+                                    [9., -2.5],
+                                    [9., 1.5],
+                                    [9., 4.5],
+                                    [9., 8.5]])        
+        self.world_points = np.column_stack((self.world_points, np.zeros((self.world_points.shape[0],1))))
 
     def set_next_state(self, state):
         """!
@@ -144,25 +169,19 @@ class StateMachine():
 
         self.current_state="execute"
 
-        if self.current_waypoint == -1:
+        if self.current_waypoint == 0:
             self.now = time.time()
             self.start_exe = time.time()
 
-        
-        #Actuate Grippers
-        if self.waypoint_grip[self.current_waypoint]:
-            self.rxarm.close_gripper()
-        else:
-            self.rxarm.open_gripper()
-        
-         #Calculate Joint Errors
+        #Calculate Joint Errors
         joint_errors = np.array(self.waypoints[self.current_waypoint]) - np.array(self.rxarm.get_positions())
         self.err = np.sqrt(np.mean(joint_errors**2))
 
         #Waypoint checking and actuation
-        if (self.err < self.thresh) or (self.current_waypoint < 0) or (self.long_time):
-            self.current_waypoint = self.current_waypoint + 1
+        if (self.err < self.thresh) or (self.current_waypoint == 0) or (self.long_time):
             self.rxarm.set_positions(self.waypoints[self.current_waypoint])          
+            self.actuate_gripper(self.waypoint_grip[self.current_waypoint])
+            self.current_waypoint += 1
             self.zTime = time.time()
             self.long_time = 0
         else:
@@ -180,8 +199,8 @@ class StateMachine():
 
 
         #Check if all waypoints have been passed through
-        if self.current_waypoint == len(self.waypoints)-1:
-            self.current_waypoint = -1
+        if self.current_waypoint == len(self.waypoints):
+            self.current_waypoint = 0
             self.next_state = "idle"
         self.status_message = "State: Execute - Executing motion plan, Err =" + str(self.err) + "Time since cmd:" + str(time.time()-self.zTime)
 
@@ -199,15 +218,6 @@ class StateMachine():
         #--------------Intrinsic Matrix Correction--------------
         # h, w = self.camera.VideoFrame.shape[:2]
         # self.camera.intrinsic_matrix, roi = cv2.getOptimalNewCameraMatrix(self.camera.intrinsic_matrix, self.camera.dist_coeffs, (w,h), 1, (w,h))
-        
-        #Average calibrated CM
-        # self.camera.intrinsic_matrix = np.array([[924.148611,	0,	658.003399],
-        #                                         [0,	926.7882943,	359.9520597],
-        #                                         [0,	0,	1]])
-        
-        # self.camera.intrinsic_matrix = np.array([[908.247025,	0,	653.123343],
-        #                                             [0,	911.200571,	343.720744],
-        #                                             [0,	0,	1]])
 
         #--------------Extrinsic Matrix Calculation--------------
         #Read in April Tag data
@@ -296,9 +306,15 @@ class StateMachine():
         """
         self.current_state = "detect"
         self.status_message = "Looking for blocks"
-        self.camera.detectBlocksInDepthImage()
-        if self.camera.contours is not None:
-            self.camera.blockDetector()
+        # self.camera.detectBlocksInDepthImage()
+        # if self.camera.contours is not None:
+        #     self.camera.blockDetector()
+        
+        if self.camera.detect == True:
+            self.camera.detect = False
+        else:
+            self.camera.detect = True
+        
         self.next_state = "idle"
 
     def initialize_rxarm(self):
@@ -355,7 +371,7 @@ class StateMachine():
         file1.write(str(self.waypoint_grip))
         file1.close()
         self.next_state = "idle"
-
+        
     def save_image(self):
         """!
         @brief      Save camera image for asynchrnous CV testing
@@ -392,29 +408,6 @@ class StateMachine():
         @brief      Gets the user input to perform the calibration
         """
         self.current_state = "calibrate_slow"
-
-
-        image_points = np.zeros((18,2))
-        camera_points = np.zeros((18,3))
-        world_points = 50*np.array([[-9., -2.5],
-                                    [-9., 1.5],
-                                    [-9., 4.5],
-                                    [-9., 8.5],
-                                    [-4., -2.5],
-                                    [-4., 1.5],
-                                    [-4., 4.5],
-                                    [-4., 8.5],
-                                    [0., 4.5],
-                                    [0., 8.5],
-                                    [4., -2.5],
-                                    [4., 1.5],
-                                    [4., 4.5],
-                                    [4., 8.5],
-                                    [9., -2.5],
-                                    [9., 1.5],
-                                    [9., 4.5],
-                                    [9., 8.5]])
-
         """TODO Perform camera calibration routine here"""
         '''Extrinsics calculation
         user should click on some specified grid coordinates in a specific order ->this goes in image_points
@@ -424,42 +417,44 @@ class StateMachine():
         '''
         if self.camera.points_collected <=18:
             if self.camera.new_click:
-                image_points[self.camera.points_collected-1,:] = self.camera.last_click
+                self.image_points[self.camera.points_collected-1,0:2] = self.camera.last_click
                 self.camera.new_click = False
             else:
-                self.status_message = "Please click on: " + np.array2string(world_points[self.camera.points_collected], formatter={'float_kind':lambda x: "%.1f" % x})
+                self.status_message = "Please click on: " + np.array2string(self.world_points[self.camera.points_collected], formatter={'float_kind':lambda x: "%.1f" % x})
             #Force it to move on once we have all points
             if self.camera.points_collected == 18:
                 self.camera.points_collected +=1
-           
         else:
             self.camera.points_collected = 0
             self.camera.invIntrinsicCameraMatrix = np.linalg.inv(self.camera.intrinsic_matrix)
-            for i in range(image_points.shape[0]):
-                uv1 = np.column_stack((image_points[i,:],np.array([1])))
-                v = uv1[0]
-                u = uv1[1]
+            for i in range(self.image_points.shape[0]):
+                uv1 = self.image_points[i,:]
+                v = uv1[1]
+                u = uv1[0]
                 uv1 = uv1.reshape((3,1))
-                Zc = self.camera.DepthCameraRaw[v,u]
-                camera_points[i,:] = Zc*np.matmul(self.camera.invIntrinsicCameraMatrix,uv1)
+                Zc = self.camera.DepthFrameRaw[int(v),int(u)]
+                self.camera_points[i,:] = (Zc*np.matmul(self.camera.invIntrinsicCameraMatrix,uv1)).reshape(3)
 
-            camera_mean = np.mean(camera_points, axis = 0)
-            world_mean = np.mean(world_points, axis = 0)
+            camera_mean = np.mean(self.camera_points, axis = 0)
+            world_mean = np.mean(self.world_points, axis = 0)
 
             correlation = np.zeros((world_mean.shape[0],camera_mean.shape[0]))
-            for i in range(world_points.shape[0]):
-                world_ci = world_points[i,:].reshape((3,1)) - world_mean.reshape((3,1))
-                camera_ci = camera_points[i,:].reshape((3,1)) - camera_mean.reshape((3,1))
+            for i in range(self.world_points.shape[0]):
+                world_ci = self.world_points[i,:].reshape((3,1)) - world_mean.reshape((3,1))
+                camera_ci = self.camera_points[i,:].reshape((3,1)) - camera_mean.reshape((3,1))
                 correlation += np.matmul(world_ci, camera_ci.T)
-            U_rot, s_rot, VT_rot = np.linalg.svd(correlation, full_mamtrices = False)
-            R = np.linalg.matmul(VT_rot.T, U_rot.T)
+            U_rot, s_rot, VT_rot = np.linalg.svd(correlation, full_matrices = False)
+            R = np.matmul(VT_rot.T, U_rot.T)
 
-            if np.linalg.det(R) == 1:
+            if abs(np.linalg.det(R)-1)<0.005:
                 pass
-            elif np.linalg.det(R) == -1:
+            else:
                 V = VT_rot.T
                 V[:,2] *= -1
-                R = np.linalg.matmul(V, U_rot.T)
+                R = np.matmul(V, U_rot.T)
+                detR = np.linalg.det(R)
+                print('Had to correct for planar points')
+                print('New determinant is {detR}')
 
             T = camera_mean.T - np.matmul(R, world_mean.T)
             
@@ -467,6 +462,9 @@ class StateMachine():
             self.camera.extrinsic_matrix[-1,-1] = 1
             self.camera.extrinsic_matrix[:3,:3] = R
             self.camera.extrinsic_matrix[:3,-1] = T
+
+            self.camera.invExtrinsicCameraMatrix = np.linalg.inv(self.camera.extrinsic_matrix)
+
             #--------------Homography Transform calculations--------------
             corner_coords_world = np.array([[500,-175,0],[500,475,0], [-500, 475,0], [-500,-175,0]]) #[LR, UR, UL, LL]
             corner_coords_pixel = np.zeros((4,2))
@@ -494,13 +492,89 @@ class StateMachine():
             self.camera.calibrated = True
             self.next_state = "idle"
 
+
             self.status_message = "Calibration - Completed Calibration"
 
     def click_place(self):
         self.current_state = "click_place"
+        count = self.waypoint_grip[-1] 
+        '''
+        if points_coll < desired:
+            if nnew click:
+                points[click] = new click
+                new click = False
+        else:
+            build waypoints and execute
+
+        '''
+        if self.camera.new_click:
+            
+            if count == 0:
+                pt = self.camera.last_click
+                ptW = self.camera.PixeltoWorldPos(pt[0],pt[1])
+                ptW_approch = self.camera.PixeltoWorldPos(pt[0],pt[1])
+                ptW[2] = ptW[2] + 15
+                ptW_approch[2] = ptW_approch[2] + 100
+                theta_des = IK_geometric_two(self.rxarm.dh_params,ptW[0:3].reshape(3),'down')
+                theta_des_approach = IK_geometric_two(self.rxarm.dh_params,ptW_approch[0:3].reshape(3),'down')
+
+                print(count)
+                
+                self.waypoints = []
+                self.waypoint_grip = []
+                self.waypoints.append(theta_des_approach)
+                self.waypoint_grip.append(0)
+
+                self.waypoints.append(theta_des)
+                self.waypoint_grip.append(0)
+
+                self.waypoints.append(theta_des)
+                self.waypoint_grip.append(1)
+
+                self.waypoints.append(theta_des_approach)
+                self.waypoint_grip.append(1)
+
+                self.next_state = "execute"
+                self.camera.new_click = False
         
-        #if placed:
-            #self.next_state = "idle"
+            if count == 1:
+                pt = self.camera.last_click
+                ptW = self.camera.PixeltoWorldPos(pt[0],pt[1])
+                ptW_approch = self.camera.PixeltoWorldPos(pt[0],pt[1])
+                ptW[2] = ptW[2] + 15
+                ptW_approch[2] = ptW_approch[2] + 100
+                theta_des = IK_geometric_two(self.rxarm.dh_params,ptW[0:3].reshape(3),'down')
+                theta_des_approach = IK_geometric_two(self.rxarm.dh_params,ptW_approch[0:3].reshape(3),'down')
+
+                print(count)
+                self.waypoints = []
+                self.waypoint_grip = []
+
+                self.waypoints.append(theta_des_approach)
+                self.waypoint_grip.append(1)
+
+                self.waypoints.append(theta_des)
+                self.waypoint_grip.append(1)
+
+                self.waypoints.append(theta_des)
+                self.waypoint_grip.append(0)
+
+                self.waypoints.append(theta_des_approach)
+                self.waypoint_grip.append(0)
+
+                self.next_state = "execute"
+                self.camera.new_click = False
+
+#--------------------------Helper Functions-------------------------------------------------#
+    def actuate_gripper(self,grip_state):
+        #Actuate Grippers
+        if grip_state:
+            self.rxarm.close_gripper()
+        else:
+            self.rxarm.open_gripper()
+    
+
+
 class StateMachineThread(QThread):
     """!
     @brief      Runs the state machine

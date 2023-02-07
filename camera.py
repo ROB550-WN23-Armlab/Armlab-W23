@@ -76,7 +76,7 @@ class Camera():
         self.gridUL = None 
         self.gridLR = None
         self.blockFrames = None
-
+        self.detect = False
 
         #Debuggin nums
         self.TotalCt = 0.
@@ -131,7 +131,19 @@ class Camera():
         world_pos[0:3,0] = world_coord  
         camera_coords = np.matmul(self.extrinsic_matrix,world_pos)  
         Zc = camera_coords[2]
-        return 1/Zc*np.matmul(self.intrinsic_matrix,camera_coords[0:3].reshape((3,1)))[0:2].reshape(1,2)        
+        return 1/Zc*np.matmul(self.intrinsic_matrix,camera_coords[0:3].reshape((3,1)))[0:2].reshape(1,2)
+
+    def PixeltoWorldPos(self, u, v):
+
+        pxFrame = np.array([[u],[v],[1]])
+
+        camFrame = np.zeros((4,1))
+        camFrame[0:3] = self.DepthFrameRaw[v,u]*np.matmul(self.invIntrinsicCameraMatrix,pxFrame)
+        camFrame[-1] = 1
+
+        worldPos = np.matmul(self.invExtrinsicCameraMatrix, camFrame)
+
+        return worldPos
 
     def PxFrame2WorldFrame(self, pixel_pos, theta):
         """!
@@ -140,7 +152,7 @@ class Camera():
 
         #
         pxFrame = np.ones((3,1))
-        pxFrame[2,0] = pixel_pos[0]
+        pxFrame[0,0] = pixel_pos[0]
         pxFrame[1,0] = pixel_pos[1]
 
         camFrame = np.zeros((4,4))
@@ -166,7 +178,7 @@ class Camera():
         @brief Converts frame to colormaped formats in HSV and RGB
         """
         self.DepthFrameHSV[..., 0] = 6*self.thresh.astype(np.uint16) >> 1
-        # self.DepthFrameHSV[..., 0] = self.DepthFrameRaw >> 1
+        #self.DepthFrameHSV[..., 0] = 6*self.DepthFrameProcessed.astype(np.uint16) >> 1
         self.DepthFrameHSV[..., 1] = 0xFF
         self.DepthFrameHSV[..., 2] = 0x9F
         self.DepthFrameRGB = cv2.cvtColor(self.DepthFrameHSV,
@@ -429,9 +441,12 @@ class ImageListener:
             cv_image = self.bridge.imgmsg_to_cv2(data, data.encoding)
         except CvBridgeError as e:
             print(e)
-        self.camera.VideoFrame = cv_image
-        #self.camera.VideoFrame = cv2.undistort(cv_image,self.camera.intrinsic_matrix, self.camera.dist_coeffs, None)
+#        self.camera.VideoFrame = cv_image
+        self.camera.VideoFrame = cv2.undistort(cv_image,self.camera.intrinsic_matrix, self.camera.dist_coeffs, None)
 
+        if self.camera.detect:
+            self.camera.detectBlocksInDepthImage()
+            self.camera.blockDetector()
 
 class TagImageListener:
     def __init__(self, topic, camera):
@@ -467,10 +482,13 @@ class CameraInfoListener:
         self.topic = topic
         self.tag_sub = rospy.Subscriber(topic, CameraInfo, self.callback)
         self.camera = camera
-
+        self.getFirst = True
     def callback(self, data):
-        if not self.camera.cameraCalibrated:
+        if self.getFirst:
             self.camera.intrinsic_matrix = np.reshape(data.K, (3, 3))
+            h, w = self.camera.VideoFrame.shape[:2]
+            self.camera.intrinsic_matrix, roi = cv2.getOptimalNewCameraMatrix(self.camera.intrinsic_matrix, self.camera.dist_coeffs, (w,h), 1, (w,h))
+            self.getFirst = False
         #print(self.camera.intrinsic_matrix)
 
 
@@ -488,7 +506,8 @@ class DepthListener:
             
         except CvBridgeError as e:
             print(e)
-        self.camera.DepthFrameRaw = cv_depth
+        #self.camera.DepthFrameRaw = cv_depth
+        self.camera.DepthFrameRaw = cv2.undistort(cv_depth,self.camera.intrinsic_matrix, self.camera.dist_coeffs, None)
 
         DepthFrameVector = self.camera.DepthFrameRaw.T.reshape((1,1280*720))
         CartesianInCamera = DepthFrameVector*self.camera.VectorUVinCamera
@@ -526,10 +545,10 @@ class VideoThread(QThread):
             time.sleep(0.5)
         while True:
 #--------------------------------------------------------------------------------------------------------#
-            #TODO: Integrate these functions into a process instead of running all the time
-            self.camera.detectBlocksInDepthImage()
-            if self.camera.contours is not None:
-                self.camera.blockDetector()
+            # #TODO: Integrate these functions into a process instead of running all the time
+            # self.camera.detectBlocksInDepthImage()
+            # if self.camera.contours is not None:
+            #     self.camera.blockDetector()
 #--------------------------------------------------------------------------------------------------------#
             rgb_frame = self.camera.convertQtVideoFrame()
             depth_frame = self.camera.convertQtDepthFrame()

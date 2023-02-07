@@ -8,6 +8,7 @@ There are some functions to start with, you may need to implement a few more
 import numpy as np
 # expm is a matrix exponential function
 from scipy.linalg import expm
+from numpy import linalg as la
 import math
 
 
@@ -283,27 +284,33 @@ def IK_geometric_two(dh_params, pose, direction):
     # theta = pose[4]
     # psi = pose[5]
 
-    if direction=="down":
-        R_0_5 = rotation_matrix(-90,-90,-90,'xzy')
-    elif direction=="flat":
-        R_0_5 = rotation_matrix(-90,-90,0,'xzy')
-
-    # R_0_5 = get_R_from_euler_angles(phi,theta,psi)
-
     # End Effector Location
-    pos_ee = np.array([[pose[0]],[pose[1]],[pose[2]]])
+    pos_ee = np.array([pose[0],pose[1],pose[2]])
     x = pos_ee[0]
     y = pos_ee[1]
     z = pos_ee[2]
 
+
     link6_len = dh_params[4][2]; 
-    pos_wrist = pos_ee - link6_len*np.matmul(R_0_5,np.array([[0],[0],[1]]))
+    if direction=="down":
+        pos_wrist = pos_ee + np.array([0,0,link6_len])
+    elif direction=="flat":
+        # R_0_5 = rotation_matrix(-90,-90,0,'xzy')
+        pos_wrist = pos_ee - np.transpose(np.append( pos_ee[0:2]*link6_len/la.norm(pos_ee[0:2]),0))
+        print([pos_ee])
+
+    # R_0_5 = get_R_from_euler_angles(phi,theta,psi)
+
+    
+    
+    link6_len = dh_params[4][2]; 
+    # pos_wrist = pos_ee - link6_len*np.matmul(R_0_5,np.array([[0],[0],[1]]))
 
     # Wrist location
     ox = pos_wrist[0]
     oy = pos_wrist[1]
     oz = pos_wrist[2]
-
+    
     planar_x = math.sqrt(ox**2 + oy**2)
     planar_y = oz - d1
     # Q1 - Calculation 
@@ -312,7 +319,14 @@ def IK_geometric_two(dh_params, pose, direction):
         q1 = q1 + 2*np.pi
 
     # Q3 - Calculation
-    theta_3 = math.acos(((planar_x**2 + planar_y**2) - l1**2 -l2**2)/(2*l1*l2))
+    print((((planar_x**2 + planar_y**2) - l1**2 -l2**2)/(2*l1*l2)))
+
+    try:
+        theta_3 = math.acos(((planar_x**2 + planar_y**2) - l1**2 -l2**2)/(2*l1*l2))
+    except:
+        theta_3 = 0
+        print('error in theta_3')
+
     theta_3 = -theta_3    # Choosing Elbow Up 
     q3 = theta_3 + angle_offset
 
@@ -321,20 +335,27 @@ def IK_geometric_two(dh_params, pose, direction):
     q2 = angle_offset - theta_2
 
     ## For Q3, Q4, Q5 calculations
-    joint_angles_mod = np.array([q1,q2,q3,0.0,0.0])
-    T_0_3 = FK_dh(dh_params, joint_angles_mod, 3)
-    R_0_3 = T_0_3[0:3,0:3]
-    R_3_5 = np.matmul(np.linalg.inv(R_0_3), R_0_5)
+    # joint_angles_mod = np.array([q1,q2,q3,0.0,0.0])
+    # T_0_3 = FK_dh(dh_params, joint_angles_mod, 3)
+    # R_0_3 = T_0_3[0:3,0:3]
+    # R_3_5 = np.matmul(np.linalg.inv(R_0_3), R_0_5)
 
-    q4,q5,q6 = get_euler_angles_from_T(R_3_5)
+    # q4,q5,q6 = get_euler_angles_from_T(R_3_5)
 
-    return [q1,q2,q3,q4,q6-math.pi/2]
+    if direction=="down":
+        q4 = q2-q3-math.pi/2  
+        q5 = q1
+    elif direction=="flat":
+        q4 = q2-q3
+        q5 = 0
+
+    return [q1,q2,q3,q4,q5]
 
 def rotation_matrix(theta1, theta2, theta3, order='xyz'):
     """
     input
         theta1, theta2, theta3 = rotation angles in rotation order (degrees)
-        oreder = rotation order of x,y,z　e.g. XZY rotation -- 'xzy'
+        oreder = rotation order of x,y,z e.g. XZY rotation -- 'xzy'
     output
         3x3 rotation matrix (numpy array)
     """
