@@ -5,6 +5,7 @@ Class to represent the camera.
 import cv2
 import time
 import numpy as np
+import numpy.ma as ma
 from PyQt4.QtGui import QImage
 from PyQt4.QtCore import QThread, pyqtSignal, QTimer
 import rospy
@@ -39,7 +40,6 @@ class Camera():
         """ Extra arrays for colormaping the depth image"""
         self.DepthFrameHSV = np.zeros((720, 1280, 3)).astype(np.uint8)
         self.DepthFrameRGB = np.array([])
-
         # mouse clicks & calibration variables
         self.cameraCalibrated = False
         self.intrinsic_matrix = np.array([[900.543212,0,655.99074785],[0,900.8950195,353.4480286],[0,0,1]])#np.array([])
@@ -77,6 +77,7 @@ class Camera():
         self.gridLR = None
         self.blockFrames = None
         self.detect = False
+        self.blockData = [] #Should be list of lists, inner list have structure of [WorldFrame, color, theta, w, h] 
 
         #Debuggin nums
         self.TotalCt = 0.
@@ -122,6 +123,7 @@ class Camera():
         ypos = 50.0 * np.arange(-2.5, 9.5, 1.0)
         xpos = 50.0 * np.arange(-9.0, 10.0, 1.0)
         self.board_points = np.array(np.meshgrid(xpos, ypos)).T.reshape(-1, 2)  
+
       
     def WorldtoPixel(self, world_coord):
         """!
@@ -177,8 +179,8 @@ class Camera():
         """!
         @brief Converts frame to colormaped formats in HSV and RGB
         """
-        self.DepthFrameHSV[..., 0] = 6*self.thresh.astype(np.uint16) >> 1
-        #self.DepthFrameHSV[..., 0] = 6*self.DepthFrameProcessed.astype(np.uint16) >> 1
+        #self.DepthFrameHSV[..., 0] = 6*self.thresh.astype(np.uint16) >> 1
+        self.DepthFrameHSV[..., 0] = 6*self.DepthFrameProcessed.astype(np.uint16) >> 1
         self.DepthFrameHSV[..., 1] = 0xFF
         self.DepthFrameHSV[..., 2] = 0x9F
         self.DepthFrameRGB = cv2.cvtColor(self.DepthFrameHSV,
@@ -224,8 +226,9 @@ class Camera():
             frame = cv2.resize(self.GridFrame, (1280, 720))
 
             if self.homography is not None:
-                frame = cv2.warpPerspective(frame, self.homography,(frame.shape[1], frame.shape[0]))
+                #frame = cv2.warpPerspective(frame, self.homography,(frame.shape[1], frame.shape[0]))
                 #print('homographacation')      
+                pass
 
             img = QImage(frame, frame.shape[1], frame.shape[0],
                          QImage.Format_RGB888)      
@@ -310,13 +313,20 @@ class Camera():
         """!
         @brief      Utility function to determine depth of top of block
         """
+        depth = data.copy()
+        mask = np.ones_like(self.DepthFrameRaw, dtype=np.uint8)
+        v1, u1 = self.gridUL[1], self.gridUL[0]
+        v2, u2 = self.gridLR[1], self.gridLR[0]
+        mask[v1:(v2+1),u1:(u2+1)] -= 1
+        readTheseVals = ma.masked_array(depth,mask = mask)
+
         x,y,w,h = cv2.boundingRect(contour)
         xmin = x-w/2
         xmax = x+w/2
         ymin = y-h/2
         ymax = y+h/2
-
-        return np.amax(data[ymin:ymax, xmin:xmax])
+        
+        return np.amax(readTheseVals[ymin:ymax, xmin:xmax])
 
 
     def blockDetector(self):
@@ -331,11 +341,12 @@ class Camera():
         VFcopy = self.VideoFrame.copy()
         #TODO: Draw labels on something other than DepthFrameRGB, VideoFrame refreshes too fast or something so it doesnt work that well there :/
 
-        self.blockFrames = []
+        self.blockData = []
         for contour in self.contours:
             VideoFrameLAB = cv2.cvtColor(VFcopy, cv2.COLOR_RGB2LAB)
             contour_color, LAB = self.retrieve_area_color(VideoFrameLAB, contour, "LAB")
             rect = cv2.minAreaRect(contour)
+            wh = rect[1]
             theta = rect[2]
             box = cv2.boxPoints(rect)
             box = np.int0(box)       
@@ -347,7 +358,7 @@ class Camera():
                 font_color = self.color_font[self.color_contrast[contour_color]]
                 cx = int(M['m10']/M['m00'])
                 cy = int(M['m01']/M['m00'])
-                self.blockFrames.append(self.PxFrame2WorldFrame([cx,cy],theta))
+                blockFrame = self.PxFrame2WorldFrame([cx,cy],theta)
                 cv2.putText(contour_frame, contour_color, (cx-20, cy+40), font, 0.75,font_color , thickness=2)
                 cv2.putText(contour_frame, str(int(theta)), (cx-20, cy), font, 0.5, font_color, thickness=2)
                 #cv2.putText(contour_frame, "LAB: %0.1f, %0.1f" %LAB, (cx-20, cy-50), font, 0.5, (0,0,0), thickness=2)
@@ -356,10 +367,15 @@ class Camera():
                     height = self.block_height(self.DepthFrameProcessed, contour)
                     cv2.putText(contour_frame, "Height: %.2f" %height, (cx-40, cy-30), font, 0.5, font_color, thickness=2)
                 except:#Issues with empty contours i think
-                    pass
+                    print("Issue retrieving height")                    
+                
+                data = [blockFrame, contour_color, theta, wh[0], wh[1]]
+                self.blockData.append(data)
+
             else:
                 #self.ZeroCt +=1.
                 pass
+        #print(self.blockData)
         contour_frame = cv2.cvtColor(contour_frame, cv2.COLOR_RGB2BGR)
         cv2.imwrite("block_labels.png",contour_frame)                
                 
@@ -380,17 +396,17 @@ class Camera():
         if self.calibrated:
             #Grid Mask
             cv2.rectangle(mask, self.gridUL, self.gridLR, 255, cv2.FILLED)
-            # cv2.rectangle(self.VideoFrame,self.gridUL, self.gridLR, (255, 0, 0), 2)
+            #cv2.rectangle(self.VideoFrame,self.gridUL, self.gridLR, (255, 0, 0), 2)
 
             #Bar Masks
             cv2.rectangle(mask, tuple(self.bar_location[0,:]), tuple(self.bar_location[1,:]), 0, cv2.FILLED)
             cv2.rectangle(mask, tuple(self.bar_location[2,:]), tuple(self.bar_location[3,:]), 0, cv2.FILLED)
-            # cv2.rectangle(self.VideoFrame,tuple(self.bar_location[0,:]), tuple(self.bar_location[1,:]), (255, 0, 0), 2)
-            # cv2.rectangle(self.VideoFrame,tuple(self.bar_location[2,:]), tuple(self.bar_location[3,:]), (255, 0, 0), 2)
+            #cv2.rectangle(self.VideoFrame,tuple(self.bar_location[0,:]), tuple(self.bar_location[1,:]), (255, 0, 0), 2)
+            #cv2.rectangle(self.VideoFrame,tuple(self.bar_location[2,:]), tuple(self.bar_location[3,:]), (255, 0, 0), 2)
 
             #Robot Masks
             cv2.rectangle(mask, tuple(self.robot_sleep_loc[0,:]), tuple(self.robot_sleep_loc[1,:]), 0, cv2.FILLED)
-            # cv2.rectangle(self.VideoFrame,tuple(self.robot_sleep_loc[0,:]), tuple(self.robot_sleep_loc[1,:]), (255, 0, 0), 2)
+            #cv2.rectangle(self.VideoFrame,tuple(self.robot_sleep_loc[0,:]), tuple(self.robot_sleep_loc[1,:]), (255, 0, 0), 2)
 
             self.thresh = cv2.bitwise_and(cv2.inRange(self.DepthFrameProcessed, lower, upper), mask)
 
@@ -441,8 +457,8 @@ class ImageListener:
             cv_image = self.bridge.imgmsg_to_cv2(data, data.encoding)
         except CvBridgeError as e:
             print(e)
-#        self.camera.VideoFrame = cv_image
-        self.camera.VideoFrame = cv2.undistort(cv_image,self.camera.intrinsic_matrix, self.camera.dist_coeffs, None)
+        self.camera.VideoFrame = cv_image
+        #self.camera.VideoFrame = cv2.undistort(cv_image,self.camera.intrinsic_matrix, self.camera.dist_coeffs, None)
 
         if self.camera.detect:
             self.camera.detectBlocksInDepthImage()
@@ -486,8 +502,8 @@ class CameraInfoListener:
     def callback(self, data):
         if self.getFirst:
             self.camera.intrinsic_matrix = np.reshape(data.K, (3, 3))
-            h, w = self.camera.VideoFrame.shape[:2]
-            self.camera.intrinsic_matrix, roi = cv2.getOptimalNewCameraMatrix(self.camera.intrinsic_matrix, self.camera.dist_coeffs, (w,h), 1, (w,h))
+            #h, w = self.camera.VideoFrame.shape[:2]
+            #self.camera.intrinsic_matrix, roi = cv2.getOptimalNewCameraMatrix(self.camera.intrinsic_matrix, self.camera.dist_coeffs, (w,h), 1, (w,h))
             self.getFirst = False
         #print(self.camera.intrinsic_matrix)
 
@@ -506,14 +522,15 @@ class DepthListener:
             
         except CvBridgeError as e:
             print(e)
-        #self.camera.DepthFrameRaw = cv_depth
-        self.camera.DepthFrameRaw = cv2.undistort(cv_depth,self.camera.intrinsic_matrix, self.camera.dist_coeffs, None)
+        self.camera.DepthFrameRaw = cv_depth
+        self.camera.DepthFrameRaw += self.camera.DepthFrameZero.astype('uint16')
+        #fself.camera.DepthFrameRaw = cv2.undistort(cv_depth,self.camera.intrinsic_matrix, self.camera.dist_coeffs, None)
 
         DepthFrameVector = self.camera.DepthFrameRaw.T.reshape((1,1280*720))
         CartesianInCamera = DepthFrameVector*self.camera.VectorUVinCamera
         WorldPointZs = self.camera.invExtrinsicCameraMatrix[2,:].dot(np.concatenate((CartesianInCamera,np.ones((1,1280*720))),axis=0))
         self.camera.DepthFrameProcessed = WorldPointZs.reshape((1280,720)).T
-        self.camera.DepthFrameProcessed -= self.camera.DepthFrameZero
+        #self.camera.DepthFrameProcessed -= self.camera.DepthFrameZero
         self.camera.ColorizeDepthFrame()
 
 

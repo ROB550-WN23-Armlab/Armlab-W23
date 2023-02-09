@@ -106,13 +106,12 @@ def get_euler_angles_from_T(T):
     """
     R = T[0:3,0:3]  #Rotation Matrix
 
-    try:
-        theta = math.atan2(math.sqrt(1-round(R[2][2])**2),R[2][2])
-    except:
-        print(R)
-        print('\n')
-        print(R[2][2])
-        print('\n')
+    # try:
+    theta = math.atan2(math.sqrt(1-(R[2][2])**2),R[2][2])
+    # print(R)
+    # print('\n')
+    # print(theta)
+    # print('\n')
     if(math.sin(theta)>0):
         phi = math.atan2(R[1][2],R[0][2])
         psi = math.atan2(R[2][1],-R[2][0])
@@ -120,6 +119,11 @@ def get_euler_angles_from_T(T):
         phi = math.atan2(-R[1][2],-R[0][2])
         psi = math.atan2(-R[2][1],R[2][0])
     return (phi,theta,psi)
+    # except:
+    #     print(R)
+    #     print('\n')
+    #     print(R[2][2])
+    #     print('\n')
 
 
 def get_R_from_euler_angles(phi,theta,psi):
@@ -476,10 +480,10 @@ def IK_geometric_two(dh_params, pose, direction):
     try: 
         pose_A1 = get_pose_from_T(T_A1)
         if np.allclose(pos_ee, np.array(pose_A1[0:3]), rtol=1e-04, atol=1e-05, equal_nan=False):
-            print(T_A1)
-            print('\n')
-            print(np.array(pose_A1[0:3]))
-            print('\n')
+            # print(T_A1)
+            # print('\n')
+            # print(np.array(pose_A1[0:3]))
+            # print('\n')
             if direction == "flat":
                 q7 = 0
             else:
@@ -489,10 +493,10 @@ def IK_geometric_two(dh_params, pose, direction):
             q8 = error_intentional
     except:
         pose_A2 = get_pose_from_T(T_A2)
-        print(T_A2)
-        print('\n')
-        print(np.array(pose_A2[0:3]))
-        print('\n')
+        # print(T_A2)
+        # print('\n')
+        # print(np.array(pose_A2[0:3]))
+        # print('\n')
         if direction == "flat":
             q7 = 0
         else:

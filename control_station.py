@@ -126,6 +126,9 @@ class Gui(QMainWindow):
         self.ui.btnUser9.setText('Detect Block')
         self.ui.btnUser9.clicked.connect(partial(nxt_if_arm_init, 'detect'))
 
+        self.ui.btnUser10.setText('Event 1')
+        self.ui.btnUser10.clicked.connect(partial(nxt_if_arm_init, 'event1'))
+
         # Sliders
         for sldr in self.joint_sliders:
             sldr.valueChanged.connect(self.sliderChange)

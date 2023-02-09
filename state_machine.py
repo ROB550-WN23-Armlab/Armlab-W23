@@ -30,6 +30,7 @@ class StateMachine():
         self.camera = camera
         self.status_message = "State: Idle"
         self.current_state = "idle"
+        self.previous_state = "idle"
         self.next_state = "idle"
         self.waypoints = [
             [-np.pi/2,       -0.5,      -0.3,            0.0,       0.0],
@@ -102,7 +103,10 @@ class StateMachine():
             self.estop()
 
         if self.next_state == "execute":
-            self.execute()
+            self.execute(0)
+
+        if self.next_state == "executeAndReturn":
+            self.execute(1)
 
         if self.next_state == "calibrate":
             self.calibrate()
@@ -136,6 +140,9 @@ class StateMachine():
 
         if self.next_state == "click_place":
             self.click_place()
+
+        if self.next_state == "event1":
+            self.event1()
     """Functions run for each state"""
 
     def manual(self):
@@ -160,14 +167,23 @@ class StateMachine():
         self.current_state = "estop"
         self.rxarm.disable_torque()
 
-    def execute(self):
+    def execute(self, returnFlag):
         """!
         @brief      Go through all waypoints
         TODO: Implement this function to execute a waypoint plan
               Make sure you respect estop signal
         """
-
-        self.current_state="execute"
+        if returnFlag:
+            if self.current_state != "executeAndReturn":
+                self.previous_state = self.current_state
+                print("Previous State Equals")
+                print(self.current_state)
+                print('\n')
+            self.current_state = "executeAndReturn"    
+        else:
+            print("THIS SHOULD NOT RUN")
+            self.current_state="execute"
+            self.previous_state = "idle"
 
         if self.current_waypoint == 0:
             self.now = time.time()
@@ -201,7 +217,10 @@ class StateMachine():
         #Check if all waypoints have been passed through
         if self.current_waypoint == len(self.waypoints):
             self.current_waypoint = 0
-            self.next_state = "idle"
+            self.next_state = self.previous_state
+            print("Next State Equals")
+            print(self.next_state)
+            print('\n')
         self.status_message = "State: Execute - Executing motion plan, Err =" + str(self.err) + "Time since cmd:" + str(time.time()-self.zTime)
 
     def calibrate(self):
@@ -287,6 +306,10 @@ class StateMachine():
         #Saving positions for block detection masking
         self.camera.gridUL = tuple(corner_coords_pixel[2,:].astype(int))
         self.camera.gridLR = tuple(corner_coords_pixel[0,:].astype(int))
+
+        self.camera.gridUL_flip = tuple([self.camera.gridUL[1], self.camera.gridUL[0]])
+        self.camera.gridLR_flip = tuple([self.camera.gridLR[1], self.camera.gridLR[0]])
+
         barloc_world = 50*np.array([[-11,7,0],[-9.5, 0,0], [11, 7,0],[9.5, 0,0]])
         robotsleep_world= 50*np.array([[-2.,3.,0.],[2., -3.5,0.]])
         for i in range(4):
@@ -513,8 +536,8 @@ class StateMachine():
                 pt = self.camera.last_click
                 ptW = self.camera.PixeltoWorldPos(pt[0],pt[1])
                 ptW_approch = self.camera.PixeltoWorldPos(pt[0],pt[1])
-                ptW[2] = ptW[2] + 25
-                ptW_approch[2] = ptW_approch[2] + 100
+                ptW[2] = ptW[2] -20
+                ptW_approch[2] = ptW_approch[2] + 50
                 theta_des = IK_geometric_two(self.rxarm.dh_params,ptW[0:3].reshape(3),'down')
                 theta_des_approach = IK_geometric_two(self.rxarm.dh_params,ptW_approch[0:3].reshape(3),'down')
 
@@ -565,6 +588,76 @@ class StateMachine():
                 self.next_state = "execute"
                 self.camera.new_click = False
 
+    def event1(self):
+        print("RUNNING EVENT 1")
+        self.current_state = "event1"
+        count = self.waypoint_grip[-1] 
+        '''
+        if points_coll < desired:
+            if nnew click:
+                points[click] = new click
+                new click = False
+        else:
+            build waypoints and execute
+
+        '''
+        if self.camera.new_click:
+            
+            if count == 0:
+                pt = self.camera.last_click
+                ptW = self.camera.PixeltoWorldPos(pt[0],pt[1])
+                ptW_approch = self.camera.PixeltoWorldPos(pt[0],pt[1])
+                ptW[2] = ptW[2] -20
+                ptW_approch[2] = ptW_approch[2] + 50
+                theta_des = IK_geometric_two(self.rxarm.dh_params,ptW[0:3].reshape(3),'down')
+                theta_des_approach = IK_geometric_two(self.rxarm.dh_params,ptW_approch[0:3].reshape(3),'down')
+
+                print(count)
+                
+                self.waypoints = []
+                self.waypoint_grip = []
+                self.waypoints.append(theta_des_approach)
+                self.waypoint_grip.append(0)
+
+                self.waypoints.append(theta_des)
+                self.waypoint_grip.append(0)
+
+                self.waypoints.append(theta_des)
+                self.waypoint_grip.append(1)
+
+                self.waypoints.append(theta_des_approach)
+                self.waypoint_grip.append(1)
+
+                self.next_state = "executeAndReturn"
+                self.camera.new_click = False
+        
+            if count == 1:
+                pt = self.camera.last_click
+                ptW = self.camera.PixeltoWorldPos(pt[0],pt[1])
+                ptW_approch = self.camera.PixeltoWorldPos(pt[0],pt[1])
+                ptW[2] = ptW[2] + 50
+                ptW_approch[2] = ptW_approch[2] + 100
+                theta_des = IK_geometric_two(self.rxarm.dh_params,ptW[0:3].reshape(3),'down')
+                theta_des_approach = IK_geometric_two(self.rxarm.dh_params,ptW_approch[0:3].reshape(3),'down')
+
+                print(count)
+                self.waypoints = []
+                self.waypoint_grip = []
+
+                self.waypoints.append(theta_des_approach)
+                self.waypoint_grip.append(1)
+
+                self.waypoints.append(theta_des)
+                self.waypoint_grip.append(1)
+
+                self.waypoints.append(theta_des)
+                self.waypoint_grip.append(0)
+
+                self.waypoints.append(theta_des_approach)
+                self.waypoint_grip.append(0)
+
+                self.next_state = "executeAndReturn"
+                self.camera.new_click = False
 #--------------------------Helper Functions-------------------------------------------------#
     def actuate_gripper(self,grip_state):
         #Actuate Grippers
