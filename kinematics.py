@@ -106,7 +106,13 @@ def get_euler_angles_from_T(T):
     """
     R = T[0:3,0:3]  #Rotation Matrix
 
-    theta = math.atan2(math.sqrt(1-R[2][2]**2),R[2][2])
+    try:
+        theta = math.atan2(math.sqrt(1-round(R[2][2])**2),R[2][2])
+    except:
+        print(R)
+        print('\n')
+        print(R[2][2])
+        print('\n')
     if(math.sin(theta)>0):
         phi = math.atan2(R[1][2],R[0][2])
         psi = math.atan2(R[2][1],-R[2][0])
@@ -263,6 +269,95 @@ def IK_geometric(dh_params, pose):
 
 
 
+# def IK_geometric_two(dh_params, pose, direction):
+#     """!
+#     @brief      Get all possible joint configs that produce the pose.
+
+#                 TODO: Convert a desired end-effector pose vector as np.array to joint angles
+
+#     @param      dh_params  The dh parameters
+#     @param      pose       The desired pose vector as np.array 
+#     @param      direction  The direction of EE, it could be "flat" or "down"
+
+#     @return     All four possible joint configurations in a numpy array 4x4 where each row is one possible joint
+#                 configuration
+#     """
+#     l1 = 205.73
+#     l2 = 200
+#     d1 = 103.91
+#     angle_offset = math.pi/2 - math.atan2(50,200)
+#     # phi = pose[3]
+#     # theta = pose[4]
+#     # psi = pose[5]
+
+#     # End Effector Location
+#     pos_ee = np.array([pose[0],pose[1],pose[2]])
+#     x = pos_ee[0]
+#     y = pos_ee[1]
+#     z = pos_ee[2]
+
+
+#     link6_len = dh_params[4][2]; 
+#     if direction=="down":
+#         pos_wrist = pos_ee + np.array([0,0,link6_len])
+#     elif direction=="flat":
+#         # R_0_5 = rotation_matrix(-90,-90,0,'xzy')
+#         pos_wrist = pos_ee - np.transpose(np.append( pos_ee[0:2]*link6_len/la.norm(pos_ee[0:2]),0))
+#         print([pos_ee])
+
+#     # R_0_5 = get_R_from_euler_angles(phi,theta,psi)
+
+    
+    
+#     link6_len = dh_params[4][2]; 
+#     # pos_wrist = pos_ee - link6_len*np.matmul(R_0_5,np.array([[0],[0],[1]]))
+
+#     # Wrist location
+#     ox = pos_wrist[0]
+#     oy = pos_wrist[1]
+#     oz = pos_wrist[2]
+    
+#     planar_x = math.sqrt(ox**2 + oy**2)
+#     planar_y = oz - d1
+#     # Q1 - Calculation 
+#     q1 = math.atan2(oy,ox) - np.pi/2.0
+#     if q1 < -np.pi:
+#         q1 = q1 + 2*np.pi
+
+#     # Q3 - Calculation
+#     print((((planar_x**2 + planar_y**2) - l1**2 -l2**2)/(2*l1*l2)))
+
+#     try:
+#         theta_3 = math.acos(((planar_x**2 + planar_y**2) - l1**2 -l2**2)/(2*l1*l2))
+#     except:
+#         theta_3 = 0
+#         print('error in theta_3')
+
+#     theta_3 = -theta_3    # Choosing Elbow Up 
+#     q3 = theta_3 + angle_offset
+
+#     # Q2 - Calculation
+#     theta_2 = math.atan2(planar_y,planar_x) - math.atan2(l2*math.sin(theta_3),l1+l2*math.cos(theta_3))
+#     q2 = angle_offset - theta_2
+
+#     ## For Q3, Q4, Q5 calculations
+#     # joint_angles_mod = np.array([q1,q2,q3,0.0,0.0])
+#     # T_0_3 = FK_dh(dh_params, joint_angles_mod, 3)
+#     # R_0_3 = T_0_3[0:3,0:3]
+#     # R_3_5 = np.matmul(np.linalg.inv(R_0_3), R_0_5)
+
+#     # q4,q5,q6 = get_euler_angles_from_T(R_3_5)
+
+#     if direction=="down":
+#         q4 = q2-q3-math.pi/2  
+#         q5 = q1
+#     elif direction=="flat":
+#         q4 = q2-q3
+#         q5 = 0
+
+#     return [q1,q2,q3,q4,q5]
+
+
 def IK_geometric_two(dh_params, pose, direction):
     """!
     @brief      Get all possible joint configs that produce the pose.
@@ -276,80 +371,142 @@ def IK_geometric_two(dh_params, pose, direction):
     @return     All four possible joint configurations in a numpy array 4x4 where each row is one possible joint
                 configuration
     """
-    l1 = 205.73
-    l2 = 200
-    d1 = 103.91
+    # Defining co
+    l1 = dh_params[1][0] # 205.73
+    l2 = dh_params[2][0] # 200
+    d1 = dh_params[0][2] # 103.91
+    link6_len = dh_params[4][2]; 
     angle_offset = math.pi/2 - math.atan2(50,200)
-    # phi = pose[3]
-    # theta = pose[4]
-    # psi = pose[5]
+    # print(l1,l2,d1,link6_len,angle_offset)
+    # print('\n')
 
     # End Effector Location
     pos_ee = np.array([pose[0],pose[1],pose[2]])
     x = pos_ee[0]
     y = pos_ee[1]
     z = pos_ee[2]
+    # print(pos_ee)
+    # print('\n')
 
-
-    link6_len = dh_params[4][2]; 
     if direction=="down":
         pos_wrist = pos_ee + np.array([0,0,link6_len])
+        # print(pos_wrist)
+        # print('\n')
+        # print(link6_len)
+        # print('\n')
+        R_0_5 = get_R_from_euler_angles(0.0,np.pi,0.0)
     elif direction=="flat":
-        # R_0_5 = rotation_matrix(-90,-90,0,'xzy')
-        pos_wrist = pos_ee - np.transpose(np.append( pos_ee[0:2]*link6_len/la.norm(pos_ee[0:2]),0))
-        print([pos_ee])
-
-    # R_0_5 = get_R_from_euler_angles(phi,theta,psi)
-
-    
-    
-    link6_len = dh_params[4][2]; 
-    # pos_wrist = pos_ee - link6_len*np.matmul(R_0_5,np.array([[0],[0],[1]]))
+        R_0_5 = get_R_from_euler_angles(math.atan2(pose[1],pose[0]),np.pi/2,0.0)
+        pos_wrist = pos_ee - link6_len*np.matmul(R_0_5,np.array([0,0,1]))
 
     # Wrist location
     ox = pos_wrist[0]
     oy = pos_wrist[1]
     oz = pos_wrist[2]
-    
+    # print(ox,oy,oz)
+    # print('\n')
     planar_x = math.sqrt(ox**2 + oy**2)
     planar_y = oz - d1
+    # print(planar_x)
+    # print('\n')
+    # print(planar_y)
+    # print('\n')
     # Q1 - Calculation 
     q1 = math.atan2(oy,ox) - np.pi/2.0
     if q1 < -np.pi:
         q1 = q1 + 2*np.pi
 
     # Q3 - Calculation
-    print((((planar_x**2 + planar_y**2) - l1**2 -l2**2)/(2*l1*l2)))
-
-    try:
-        theta_3 = math.acos(((planar_x**2 + planar_y**2) - l1**2 -l2**2)/(2*l1*l2))
-    except:
+    c3 = ((planar_x**2 + planar_y**2) - l1**2 -l2**2)/(2*l1*l2)
+    
+    if np.absolute(c3) > 1:
+        print('Postion Unreachable')
+    elif c3 ==1:
+        theta_2 = math.atan2(oy,ox)
         theta_3 = 0
-        print('error in theta_3')
+        theta_3_alt = 0
+    elif c3 ==-1 and (planar_x**2 + planar_y**2) != 0:
+        theta_2 = math.atan2(oy,ox)
+        theta_3 = math.pi
+        theta_3_alt = -math.pi
+    elif c3 ==-1 and (planar_x**2 + planar_y**2) == 0:
+        theta_2 = 0 # picking zero, as it has infinite solutions
+        theta_3 = math.pi
+        theta_3_alt = -math.pi
+        print('Infinite solutions')
+    else:
+        theta_3 = math.acos(c3)
+        theta_3_alt = -math.acos(c3)
 
     theta_3 = -theta_3    # Choosing Elbow Up 
     q3 = theta_3 + angle_offset
+    q3_alt = theta_3_alt + angle_offset
 
     # Q2 - Calculation
     theta_2 = math.atan2(planar_y,planar_x) - math.atan2(l2*math.sin(theta_3),l1+l2*math.cos(theta_3))
+    theta_2_alt = math.atan2(planar_y,planar_x) - math.atan2(l2*math.sin(theta_3_alt),l1+l2*math.cos(theta_3_alt))
     q2 = angle_offset - theta_2
+    q2_alt = angle_offset - theta_2_alt
 
-    ## For Q3, Q4, Q5 calculations
-    # joint_angles_mod = np.array([q1,q2,q3,0.0,0.0])
-    # T_0_3 = FK_dh(dh_params, joint_angles_mod, 3)
-    # R_0_3 = T_0_3[0:3,0:3]
-    # R_3_5 = np.matmul(np.linalg.inv(R_0_3), R_0_5)
+    q_1_2_3_A1 = np.array([q1,q2,q3])
+    q_1_2_3_A2 = np.array([q1,q2_alt,q3_alt])
 
-    # q4,q5,q6 = get_euler_angles_from_T(R_3_5)
+    # For A1 - For Q3, Q4, Q5 calculations
+    joint_angles_mod_A1 = np.array([q1,q2,q3,0.0,0.0])
+    T_0_3_A1 = FK_dh(dh_params, joint_angles_mod_A1, 3)
+    R_0_3_A1 = T_0_3_A1[0:3,0:3]
+    R_3_5_A1 = np.matmul(np.linalg.inv(R_0_3_A1), R_0_5)
 
-    if direction=="down":
-        q4 = q2-q3-math.pi/2  
-        q5 = q1
-    elif direction=="flat":
-        q4 = q2-q3
-        q5 = 0
+    # For A2 - For Q3, Q4, Q5 calculations
+    joint_angles_mod_A2 = np.array([q1,q2_alt,q3_alt,0.0,0.0])
+    T_0_3_A2 = FK_dh(dh_params, joint_angles_mod_A2, 3)
+    R_0_3_A2 = T_0_3_A2[0:3,0:3]
+    R_3_5_A2 = np.matmul(np.linalg.inv(R_0_3_A2), R_0_5)
 
-    return [q1,q2,q3,q4,q5]
+    q4_A1,q5_A1,q6_A1 = get_euler_angles_from_T(R_3_5_A1)
+    q4_A2,q5_A2,q6_A2 = get_euler_angles_from_T(R_3_5_A2)
+
+    # Checking q1,q2,q3,q4,q5
+    joint_angles_A1 = np.concatenate((q_1_2_3_A1, np.array([q4_A1,q5_A1,q6_A1])), axis=None)
+    joint_angles_A2 = np.concatenate((q_1_2_3_A2, np.array([ q4_A2,q5_A2,q6_A2])), axis=None)
+
+    T_A1 = FK_dh(dh_params, joint_angles_A1, 5)
+    T_A2 = FK_dh(dh_params, joint_angles_A2, 5)
+
+    try: 
+        pose_A1 = get_pose_from_T(T_A1)
+        if np.allclose(pos_ee, np.array(pose_A1[0:3]), rtol=1e-04, atol=1e-05, equal_nan=False):
+            print(T_A1)
+            print('\n')
+            print(np.array(pose_A1[0:3]))
+            print('\n')
+            if direction == "flat":
+                q7 = 0
+            else:
+                q7 = q6_A1
+            return [q1,q2,q3,q4_A1,q7]
+        else:
+            q8 = error_intentional
+    except:
+        pose_A2 = get_pose_from_T(T_A2)
+        print(T_A2)
+        print('\n')
+        print(np.array(pose_A2[0:3]))
+        print('\n')
+        if direction == "flat":
+            q7 = 0
+        else:
+            q7 = q6_A2
+        return [q1,q2,q3,q4_A2,q7]
+
+    # if direction=="down":
+    #     q4 = q2-q3-math.pi/2  
+    #     q5 = q1
+    # elif direction=="flat":
+    #     q4 = q2-q3
+    #     q5 = 0
+
+    # return [q1_f,q2_f,q3_f,q4_f,q5_f]
 
 def rotation_matrix(theta1, theta2, theta3, order='xyz'):
     """

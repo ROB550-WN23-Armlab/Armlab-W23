@@ -454,7 +454,7 @@ class StateMachine():
                 R = np.matmul(V, U_rot.T)
                 detR = np.linalg.det(R)
                 print('Had to correct for planar points')
-                print('New determinant is {detR}')
+                # print(f'New determinant is {detR}')
 
             T = camera_mean.T - np.matmul(R, world_mean.T)
             
@@ -513,7 +513,7 @@ class StateMachine():
                 pt = self.camera.last_click
                 ptW = self.camera.PixeltoWorldPos(pt[0],pt[1])
                 ptW_approch = self.camera.PixeltoWorldPos(pt[0],pt[1])
-                ptW[2] = ptW[2] + 15
+                ptW[2] = ptW[2] + 25
                 ptW_approch[2] = ptW_approch[2] + 100
                 theta_des = IK_geometric_two(self.rxarm.dh_params,ptW[0:3].reshape(3),'down')
                 theta_des_approach = IK_geometric_two(self.rxarm.dh_params,ptW_approch[0:3].reshape(3),'down')
@@ -541,7 +541,7 @@ class StateMachine():
                 pt = self.camera.last_click
                 ptW = self.camera.PixeltoWorldPos(pt[0],pt[1])
                 ptW_approch = self.camera.PixeltoWorldPos(pt[0],pt[1])
-                ptW[2] = ptW[2] + 15
+                ptW[2] = ptW[2] + 50
                 ptW_approch[2] = ptW_approch[2] + 100
                 theta_des = IK_geometric_two(self.rxarm.dh_params,ptW[0:3].reshape(3),'down')
                 theta_des_approach = IK_geometric_two(self.rxarm.dh_params,ptW_approch[0:3].reshape(3),'down')
