@@ -656,7 +656,7 @@ class StateMachine():
                 self.waypoints.append(theta_des_approach)
                 self.waypoint_grip.append(0)
 
-                self.next_state = "executeAndReturn"
+                self.next_state = "execute"
                 self.camera.new_click = False
 #--------------------------Helper Functions-------------------------------------------------#
     def actuate_gripper(self,grip_state):
