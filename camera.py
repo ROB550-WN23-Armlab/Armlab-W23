@@ -37,6 +37,9 @@ class Camera():
         self.DepthFrameRaw = np.zeros((720, 1280)).astype(np.uint16)
         self.DepthFrameProcessed = self.DepthFrameRaw.copy()
         self.DepthFrameZero = np.zeros_like(self.DepthFrameProcessed)
+        self.redetect_mask = np.zeros_like(self.DepthFrameRaw, dtype=np.uint8)
+        self.redetect_thresh = np.zeros_like(self.DepthFrameRaw, dtype=np.uint8)
+
         """ Extra arrays for colormaping the depth image"""
         self.DepthFrameHSV = np.zeros((720, 1280, 3)).astype(np.uint8)
         self.DepthFrameRGB = np.array([])
@@ -70,14 +73,14 @@ class Camera():
         self.centroids = None
         self.contours = None
         self.homography = None
-        self.TopThresh = 200
-        self.BottomThresh = 15
+        self.TopThresh = 500
+        self.BottomThresh = 10
         self.corner_coords_pixel = None
         self.gridUL = None 
         self.gridLR = None
         self.blockFrames = None
         self.detect = False
-        self.blockData = [] #Should be list of lists, inner list have structure of [WorldFrame, color, theta, w, h] 
+        self.blockData = [] #Should be list of lists, inner list have structure of [WorldFrame, color, theta, w, h, block_type] 
 
         #Debuggin nums
         self.TotalCt = 0.
@@ -123,6 +126,12 @@ class Camera():
         ypos = 50.0 * np.arange(-2.5, 9.5, 1.0)
         xpos = 50.0 * np.arange(-9.0, 10.0, 1.0)
         self.board_points = np.array(np.meshgrid(xpos, ypos)).T.reshape(-1, 2)  
+
+        #Block Labeling {'block_type': (width, height)} width will be given the smaller value, height will be given the larger value
+        self.block_types = list(({'id': 'Big Block', '(w,h)': (37.5, 37.5)},
+                                {'id': 'Small Block', '(w,h)': (25, 25)},
+                                {'id': 'Semi Circle', '(w,h)': (17, 35)},
+                                {'id': 'Arch', '(w,h)': (28,57)}))
 
       
     def WorldtoPixel(self, world_coord):
@@ -179,8 +188,10 @@ class Camera():
         """!
         @brief Converts frame to colormaped formats in HSV and RGB
         """
-        #self.DepthFrameHSV[..., 0] = 6*self.thresh.astype(np.uint16) >> 1
-        self.DepthFrameHSV[..., 0] = 6*self.DepthFrameProcessed.astype(np.uint16) >> 1
+        #self.DepthFrameHSV[..., 0] = 6*self.redetect_thresh.astype(np.uint16) >> 1
+        #self.DepthFrameHSV[..., 0] = 6*self.redetect_mask.astype(np.uint16) >> 1
+        self.DepthFrameHSV[..., 0] = 6*self.thresh.astype(np.uint16) >> 1
+        #self.DepthFrameHSV[..., 0] = 6*self.DepthFrameProcessed.astype(np.uint16) >> 1
         self.DepthFrameHSV[..., 1] = 0xFF
         self.DepthFrameHSV[..., 2] = 0x9F
         self.DepthFrameRGB = cv2.cvtColor(self.DepthFrameHSV,
@@ -308,12 +319,30 @@ class Camera():
                 min_dist = (d, label["id"])
         return min_dist[1], mean
 
+    def block_label(self, minRect):
+        wh = minRect[1]
+        if wh[0] > wh[1]:
+            width, height = wh[1], wh[0]
+        else:
+            width, height = wh[0], wh[1]
+        labels = self.block_types
+        min_dist = (np.inf, None)        
+        for label in labels:
+            d = np.linalg.norm(label['(w,h)'] - np.array([width, height]))
+            if d < min_dist[0]:
+                min_dist = (d, label["id"])
+        if min_dist[0] > 5:
+            return 'Distractor'
+        return min_dist[1]
 
     def block_height(self, data, contour):
         """!
         @brief      Utility function to determine depth of top of block
         """
-        depth = data.copy()
+        if data == "DepthFrameProcessed":
+            depth = self.DepthFrameProcessed.copy()
+        elif data == "DepthFrameRaw":
+            depth = self.DepthFrameRaw.copy()
         mask = np.ones_like(self.DepthFrameRaw, dtype=np.uint8)
         v1, u1 = self.gridUL[1], self.gridUL[0]
         v2, u2 = self.gridLR[1], self.gridLR[0]
@@ -321,13 +350,35 @@ class Camera():
         readTheseVals = ma.masked_array(depth,mask = mask)
 
         x,y,w,h = cv2.boundingRect(contour)
-        xmin = x-w/2
-        xmax = x+w/2
-        ymin = y-h/2
-        ymax = y+h/2
+        xmin = x
+        xmax = x+w
+        ymin = y
+        ymax = y+h
         
-        return np.amax(readTheseVals[ymin:ymax, xmin:xmax])
+        UR, LL = (xmin,ymin), (xmax,ymax)
 
+        if data == "DepthFrameProcessed":
+            height = np.amax(readTheseVals[ymin:ymax, xmin:xmax])
+        elif data == "DepthFrameRaw":
+            height = np.amin(readTheseVals[ymin:ymax, xmin:xmax])
+        return UR, LL, height
+
+    def block_redetect(self, data, contour):
+        self.redetect_mask = np.zeros_like(self.DepthFrameRaw, dtype=np.uint8)
+
+        UR, LL, height = self.block_height(data, contour)
+    
+        cv2.rectangle(self.redetect_mask, UR, LL, 255, cv2.FILLED)
+
+        thresh = cv2.bitwise_and(cv2.inRange(self.DepthFrameProcessed, height-15, self.TopThresh), self.redetect_mask)
+
+        kernel = np.ones((4,4), dtype = np.uint8)
+
+        self.redetect_thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+
+        _, contour, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        return contour
 
     def blockDetector(self):
         """!
@@ -343,13 +394,18 @@ class Camera():
 
         self.blockData = []
         for contour in self.contours:
+            #Rerun block detection masking for just this contour to get data only on top block in stack
+            contour = self.block_redetect("DepthFrameProcessed", contour)[0]
             VideoFrameLAB = cv2.cvtColor(VFcopy, cv2.COLOR_RGB2LAB)
             contour_color, LAB = self.retrieve_area_color(VideoFrameLAB, contour, "LAB")
+    
             rect = cv2.minAreaRect(contour)
             wh = rect[1]
             theta = rect[2]
-            box = cv2.boxPoints(rect)
-            box = np.int0(box)       
+            block_type = self.block_label(rect)
+
+            box = np.int0(cv2.boxPoints(rect))
+
             M = cv2.moments(contour)
             #self.TotalCt += 1.
             #self.percZero = self.ZeroCt/self.TotalCt*100
@@ -361,15 +417,15 @@ class Camera():
                 blockFrame = self.PxFrame2WorldFrame([cx,cy],theta)
                 cv2.putText(contour_frame, contour_color, (cx-20, cy+40), font, 0.75,font_color , thickness=2)
                 cv2.putText(contour_frame, str(int(theta)), (cx-20, cy), font, 0.5, font_color, thickness=2)
+                cv2.putText(contour_frame, block_type, (cx-40, cy-50), font, 0.5, font_color, thickness=2)
                 #cv2.putText(contour_frame, "LAB: %0.1f, %0.1f" %LAB, (cx-20, cy-50), font, 0.5, (0,0,0), thickness=2)
                 cv2.drawContours(contour_frame,[box],0,font_color,2)
                 try:
-                    height = self.block_height(self.DepthFrameProcessed, contour)
+                    _, _, height = self.block_height("DepthFrameProcessed", contour)
                     cv2.putText(contour_frame, "Height: %.2f" %height, (cx-40, cy-30), font, 0.5, font_color, thickness=2)
                 except:#Issues with empty contours i think
                     print("Issue retrieving height")                    
-                
-                data = [blockFrame, contour_color, theta, wh[0], wh[1]]
+                data = [blockFrame, contour_color, theta, wh[0], wh[1], block_type]
                 self.blockData.append(data)
 
             else:
@@ -379,7 +435,6 @@ class Camera():
         contour_frame = cv2.cvtColor(contour_frame, cv2.COLOR_RGB2BGR)
         cv2.imwrite("block_labels.png",contour_frame)                
                 
-
     def detectBlocksInDepthImage(self):
         """!
         @brief      Detect blocks from depth
@@ -387,8 +442,8 @@ class Camera():
                     TODO: Implement a blob detector to find blocks in the depth image
         """        
 
-        lower = self.BottomThresh#self.TopThresh
-        upper = self.TopThresh#self.BottomThresh
+        lower = self.BottomThresh
+        upper = self.TopThresh
 
         #Mask out robot arm
         mask = np.zeros_like(self.DepthFrameRaw, dtype=np.uint8)
@@ -411,7 +466,7 @@ class Camera():
             self.thresh = cv2.bitwise_and(cv2.inRange(self.DepthFrameProcessed, lower, upper), mask)
 
             #Morphological Filter
-            kernel = np.ones((4,4), dtype = np.uint8)
+            kernel = np.ones((8,8), dtype = np.uint8)
             #self.thresh = cv2.morphologyEx(self.thresh, cv2.MORPH_CLOSE, kernel)
 
             self.thresh = cv2.morphologyEx(self.thresh, cv2.MORPH_OPEN, kernel)
@@ -420,6 +475,7 @@ class Camera():
             
     def set_TopThresh(self,top_thresh):
         self.TopThresh = top_thresh
+    
     def set_BottomThresh(self,bottom_thresh):
         self.BottomThresh = bottom_thresh
 
@@ -443,7 +499,6 @@ class Camera():
             pixel_coords = 1/Zc*np.matmul(self.intrinsic_matrix,camera_coords[0:3])[0:2]
             #print(pixel_coords)
             self.GridFrame = cv2.circle(self.GridFrame, (int(pixel_coords[0]), int(pixel_coords[1])), 5, (0,0,255), 1)
-
 
 class ImageListener:
     def __init__(self, topic, camera):
@@ -478,7 +533,6 @@ class TagImageListener:
             print(e)
         self.camera.TagImageFrame = cv_image
 
-
 class TagDetectionListener:
     def __init__(self, topic, camera):
         self.topic = topic
@@ -491,7 +545,6 @@ class TagDetectionListener:
         #for detection in data.detections:
         # print(self.camera.tag_detections.detections[0])
         #print(detection.pose.pose.pose.position)
-
 
 class CameraInfoListener:
     def __init__(self, topic, camera):
@@ -506,7 +559,6 @@ class CameraInfoListener:
             #self.camera.intrinsic_matrix, roi = cv2.getOptimalNewCameraMatrix(self.camera.intrinsic_matrix, self.camera.dist_coeffs, (w,h), 1, (w,h))
             self.getFirst = False
         #print(self.camera.intrinsic_matrix)
-
 
 class DepthListener:
     def __init__(self, topic, camera):
@@ -532,7 +584,6 @@ class DepthListener:
         self.camera.DepthFrameProcessed = WorldPointZs.reshape((1280,720)).T
         #self.camera.DepthFrameProcessed -= self.camera.DepthFrameZero
         self.camera.ColorizeDepthFrame()
-
 
 class VideoThread(QThread):
     updateFrame = pyqtSignal(QImage, QImage, QImage,QImage)
@@ -561,12 +612,6 @@ class VideoThread(QThread):
             cv2.namedWindow("Grid window", cv2.WINDOW_NORMAL)            
             time.sleep(0.5)
         while True:
-#--------------------------------------------------------------------------------------------------------#
-            # #TODO: Integrate these functions into a process instead of running all the time
-            # self.camera.detectBlocksInDepthImage()
-            # if self.camera.contours is not None:
-            #     self.camera.blockDetector()
-#--------------------------------------------------------------------------------------------------------#
             rgb_frame = self.camera.convertQtVideoFrame()
             depth_frame = self.camera.convertQtDepthFrame()
             tag_frame = self.camera.convertQtTagImageFrame()
@@ -588,7 +633,6 @@ class VideoThread(QThread):
 
                 cv2.waitKey(3)
                 time.sleep(0.03)
-
 
 if __name__ == '__main__':
     camera = Camera()

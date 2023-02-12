@@ -75,6 +75,16 @@ class StateMachine():
                                     [9., 8.5]])        
         self.world_points = np.column_stack((self.world_points, np.zeros((self.world_points.shape[0],1))))
 
+        self.sorted = False
+
+        self.ROYGBV = ['red', 'orange', 'yellow', 'green', 'blue', 'violet']
+
+        self.ROYGBV_idx = {'red':0, 'orange':1, 'yellow':2, 'green':3, 'blue':4, 'violet':5}
+
+        self.next_big_color = 'red'
+
+        self.next_small_color = 'red'
+
     def set_next_state(self, state):
         """!
         @brief      Sets the next state.
@@ -143,6 +153,15 @@ class StateMachine():
 
         if self.next_state == "event1":
             self.event1()
+
+        if self.next_state == "event2":
+            self.event2()
+
+        if self.next_state == "event3":
+            self.event3()
+
+        if self.next_state == "event4":
+            self.event4()            
     """Functions run for each state"""
 
     def manual(self):
@@ -201,7 +220,7 @@ class StateMachine():
             self.zTime = time.time()
             self.long_time = 0
         else:
-            if (time.time() - self.zTime >3):
+            if (time.time() - self.zTime >1.5):
                 self.long_time = 1
 
         #Record data
@@ -532,6 +551,9 @@ class StateMachine():
         '''
         if self.camera.new_click:
             
+            self.camera.new_click = False
+            self.next_state = "execute"
+
             if count == 0:
                 pt = self.camera.last_click
                 ptW = self.camera.PixeltoWorldPos(pt[0],pt[1])
@@ -557,9 +579,6 @@ class StateMachine():
                 self.waypoints.append(theta_des_approach)
                 self.waypoint_grip.append(1)
 
-                self.next_state = "execute"
-                self.camera.new_click = False
-        
             if count == 1:
                 pt = self.camera.last_click
                 ptW = self.camera.PixeltoWorldPos(pt[0],pt[1])
@@ -585,24 +604,42 @@ class StateMachine():
                 self.waypoints.append(theta_des_approach)
                 self.waypoint_grip.append(0)
 
-                self.next_state = "execute"
-                self.camera.new_click = False
-
     def event1(self):
-        print("RUNNING EVENT 1")
-        self.current_state = "event1"
-        count = self.waypoint_grip[-1] 
-        '''
-        if points_coll < desired:
-            if nnew click:
-                points[click] = new click
-                new click = False
-        else:
-            build waypoints and execute
+        """!
+        @brief      Mix of small and large blocks, may be stacked. Goal is to move all small blocks to the right and all big blocks to the right of the arm
+        """
 
+        #This code framework does not currently account for small blocks hidden under large blocks, this can maybe be accounted for by separating blockredetection
+        #from normal block detection and checking if there is a significant difference in the countour width and height
+        # Can also try checking this by seeing if any of the heights are reasonable multiples of small blocks(n*25) or of big blocks (n*37.5)
+
+        self.status_message = "Running Event 1"
+        self.current_state = "event1"
+
+        self.detect_blocks_once()
+        moves = 0
+        for block in self.camera.blockData:
+            block_Frame = block[0]
+            x = block_Frame[3,0]
+            block_type = block[5]
+
+            if x>=0 and block_type == 'Small Block':
+                pass
+                moves += 1
+                #Move to negative block area
+            elif x=<0 and block_type == 'Big Block'
+                pass
+                moves +=1
+                #Move to positive block area
+        if moves == 0:
+            self.next_state = 'idle'
+            
         '''
+        count = self.waypoint_grip[-1] 
         if self.camera.new_click:
             
+            self.camera.new_click = False
+
             if count == 0:
                 pt = self.camera.last_click
                 ptW = self.camera.PixeltoWorldPos(pt[0],pt[1])
@@ -629,7 +666,6 @@ class StateMachine():
                 self.waypoint_grip.append(1)
 
                 self.next_state = "executeAndReturn"
-                self.camera.new_click = False
         
             if count == 1:
                 pt = self.camera.last_click
@@ -657,7 +693,130 @@ class StateMachine():
                 self.waypoint_grip.append(0)
 
                 self.next_state = "execute"
-                self.camera.new_click = False
+        '''                
+
+    def event2(self):
+        """!
+        @brief      Sort small blocks to left in stacks of 3 and large blocks to the right in stacks of 3
+        """
+        self.status_message = "Running Event 2"
+        self.current_state = "event2"
+
+        #This code framework does not currently account for small blocks hidden under large blocks, this can maybe be accounted for by separating blockredetection
+        #from normal block detection and checking if there is a significant difference in the countour width and height
+        # Can also try checking this by seeing if any of the heights are reasonable multiples of small blocks(n*25) or of big blocks (n*37.5)        
+
+        self.detect_blocks_once()
+
+        #Pick block tower position
+
+        moves = 0
+        for block in self.camera.blockData:
+            block_Frame = block[0]
+            x = block_Frame[3,0]
+            block_type = block[5]
+
+            if x>=0 and block_type == 'Small Block':
+                pass
+                moves += 1
+                #Move to negative block area
+            elif x=<0 and block_type == 'Big Block'
+                pass
+                moves +=1
+                #Move to positive block area
+        if moves == 0:
+            self.next_state = 'idle'
+
+    def event3(self):
+        """!
+        @brief      Line up in ROYGBV order, separate lines for small and large blocks, line can be at most 30cm (12 small blocks or 8 large blocks)
+        """
+        self.status_message = "Running Event 3"
+        self.current_state = "event3"
+
+        #This code framework does not currently account for small blocks hidden under large blocks, this can maybe be accounted for by separating blockredetection
+        #from normal block detection and checking if there is a significant difference in the countour width and height
+        # Can also try checking this by seeing if any of the heights are reasonable multiples of small blocks(n*25) or of big blocks (n*37.5)        
+
+        self.detect_blocks_once()
+
+        #Pick block tower position
+        moves = 0
+        for block in self.camera.blockData:
+            block_Frame = block[0]
+            x = block_Frame[3,0]
+            y = block_Frame[3,1]
+            block_type = block[5]
+            block_color = block[1]
+
+            #Count number of blocks in line area
+            #Can try doing initial count on initiation and then decrementing this everytime we move a block onto a line
+            if block_type == 'Small Block' and block_color == self.next_small_color:
+                self.next_small_color = self.next_color(block_color)
+                small_move_count += 1
+                pass
+                #Move to small block line
+            elif block_type == 'Big Block' and block_color == self.next_big_color:
+                self.next_big_color = self.next_color(block_color)
+                big_move_count += 1
+                pass
+                #Move to big block line
+        #In case if color isn't available
+        if small_move_count == 0:
+            self.next_small_color = self.next_color(block_color)
+        if big_move_count == 0:
+            self.next_big_color = self.next_color(block_color)
+
+        if completed:
+            self.next_state = 'idle'
+            self.next_small_color = 'red'
+            self.next_big_color = 'red'
+
+    def event4(self):
+        """!
+        @brief      Stack up in ROYGBV order, separate lines for small and large blocks
+        """
+        self.status_message = "Running Event 3"
+        self.current_state = "event3"
+
+        #This code framework does not currently account for small blocks hidden under large blocks, this can maybe be accounted for by separating blockredetection
+        #from normal block detection and checking if there is a significant difference in the countour width and height
+        # Can also try checking this by seeing if any of the heights are reasonable multiples of small blocks(n*25) or of big blocks (n*37.5)        
+
+        self.detect_blocks_once()
+
+        #Pick block tower position
+        moves = 0
+        for block in self.camera.blockData:
+            block_Frame = block[0]
+            x = block_Frame[3,0]
+            y = block_Frame[3,1]
+            block_type = block[5]
+            block_color = block[1]
+
+            #Count number of blocks in line area
+            #Can try doing initial count on initiation and then decrementing this everytime we move a block onto a line
+            if block_type == 'Small Block' and block_color == self.next_small_color:
+                self.next_small_color = self.next_color(block_color)
+                small_move_count += 1
+                pass
+                #Move to small block line
+            elif block_type == 'Big Block' and block_color == self.next_big_color:
+                self.next_big_color = self.next_color(block_color)
+                big_move_count += 1
+                pass
+                #Move to big block line
+        #In case if color isn't available
+        if small_move_count == 0:
+            self.next_small_color = self.next_color(block_color)
+        if big_move_count == 0:
+            self.next_big_color = self.next_color(block_color)
+
+        if completed:
+            self.next_state = 'idle'
+            self.next_small_color = 'red'
+            self.next_big_color = 'red'
+    
 #--------------------------Helper Functions-------------------------------------------------#
     def actuate_gripper(self,grip_state):
         #Actuate Grippers
@@ -666,7 +825,15 @@ class StateMachine():
         else:
             self.rxarm.open_gripper()
     
+    def detect_blocks_once(self):
+        self.camera.detectBlocksInDepthImage()
+        self.camera.blockDetector()
 
+
+    def next_color(self, current_color):
+        #Determines next color in ROYGBV
+        current_color_idx = self.ROYGBV_idx[current_color]
+        return ROYGBV[(current_color_idx+1)%6 ]
 
 class StateMachineThread(QThread):
     """!
