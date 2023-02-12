@@ -92,12 +92,12 @@ class Gui(QMainWindow):
         #User Buttons
         self.ui.btnUser1.setText("Calibrate")
         self.ui.btnUser1.clicked.connect(partial(nxt_if_arm_init, 'calibrate'))
-        self.ui.btnUser2.setText('Open Gripper')
-        self.ui.btnUser2.clicked.connect(lambda: self.rxarm.open_gripper())
-        self.ui.btnUser3.setText('Close Gripper')
-        self.ui.btnUser3.clicked.connect(lambda: self.rxarm.close_gripper())
-        self.ui.btnUser4.setText('Execute')
-        self.ui.btnUser4.clicked.connect(partial(nxt_if_arm_init, 'execute'))        
+        # self.ui.btnUser2.setText('Open Gripper')
+        # self.ui.btnUser2.clicked.connect(lambda: self.rxarm.open_gripper())
+        # self.ui.btnUser3.setText('Close Gripper')
+        # self.ui.btnUser3.clicked.connect(lambda: self.rxarm.close_gripper())
+        # self.ui.btnUser4.setText('Execute')
+        # self.ui.btnUser4.clicked.connect(partial(nxt_if_arm_init, 'execute'))        
         
         # self.ui.btnUser5.setText('Add Waypoint Closed Gripper')
         # self.ui.btnUser5.clicked.connect(partial(nxt_if_arm_init, 'save_waypoint_close'))
@@ -111,23 +111,35 @@ class Gui(QMainWindow):
         # self.ui.btnUser8.setText('Save Waypoints')
         # self.ui.btnUser8.clicked.connect(partial(nxt_if_arm_init, 'save_waypoints'))
         
-        self.ui.btnUser5.setText('Save Image')
-        self.ui.btnUser5.clicked.connect(partial(nxt_if_arm_init, 'save_image'))
+        # self.ui.btnUser5.setText('Save Image')
+        # self.ui.btnUser5.clicked.connect(partial(nxt_if_arm_init, 'save_image'))
 
-        self.ui.btnUser6.setText('Click and Place')
-        self.ui.btnUser6.clicked.connect(partial(nxt_if_arm_init, 'click_place'))
+        self.ui.btnUser2.setText('Click and Place')
+        self.ui.btnUser2.clicked.connect(partial(nxt_if_arm_init, 'click_place'))
 
-        self.ui.btnUser7.setText('Zero Depth Frame')
-        self.ui.btnUser7.clicked.connect(partial(nxt_if_arm_init, 'zero_depth'))
+        self.ui.btnUser3.setText('Zero Depth Frame')
+        self.ui.btnUser3.clicked.connect(partial(nxt_if_arm_init, 'zero_depth'))
 
-        self.ui.btnUser8.setText('Slow Calibrate')
-        self.ui.btnUser8.clicked.connect(partial(nxt_if_arm_init, 'calibrate_slow'))
+        # self.ui.btnUser8.setText('Slow Calibrate')
+        # self.ui.btnUser8.clicked.connect(partial(nxt_if_arm_init, 'calibrate_slow'))
 
-        self.ui.btnUser9.setText('Detect Block')
-        self.ui.btnUser9.clicked.connect(partial(nxt_if_arm_init, 'detect'))
+        self.ui.btnUser4.setText('Detect Block')
+        self.ui.btnUser4.clicked.connect(partial(nxt_if_arm_init, 'detect'))
 
-        self.ui.btnUser10.setText('Event 1')
-        self.ui.btnUser10.clicked.connect(partial(nxt_if_arm_init, 'event1'))
+        self.ui.btnUser5.setText('Event 1')
+        self.ui.btnUser5.clicked.connect(partial(nxt_if_arm_init, 'event1'))
+
+        self.ui.btnUser6.setText('Event 2')
+        self.ui.btnUser6.clicked.connect(partial(nxt_if_arm_init, 'event2'))
+
+        self.ui.btnUser7.setText('Event 3')
+        self.ui.btnUser7.clicked.connect(partial(nxt_if_arm_init, 'event3'))
+
+        self.ui.btnUser8.setText('Event 4')
+        self.ui.btnUser8.clicked.connect(partial(nxt_if_arm_init, 'event4'))        
+
+        self.ui.btnUser8.setText('Test Helper')
+        self.ui.btnUser8.clicked.connect(partial(nxt_if_arm_init, 'test'))       
 
         # Sliders
         for sldr in self.joint_sliders:

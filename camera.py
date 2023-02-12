@@ -133,7 +133,6 @@ class Camera():
                                 {'id': 'Semi Circle', '(w,h)': (17, 35)},
                                 {'id': 'Arch', '(w,h)': (28,57)}))
 
-      
     def WorldtoPixel(self, world_coord):
         """!
         @brief      Convert world coordinates to pixel coordinates, returns (u,v)
@@ -161,16 +160,21 @@ class Camera():
         @brief      Expresses Pixel Frame to World Frame
         """                
 
-        #
+        #Construct uv1
         pxFrame = np.ones((3,1))
-        pxFrame[0,0] = pixel_pos[0]
-        pxFrame[1,0] = pixel_pos[1]
-
+        u = pixel_pos[0]
+        v = pixel_pos[1]
+        pxFrame[0,0] = u
+        pxFrame[1,0] = v
+        Zc = self.DepthFrameRaw[v,u]
+        
         camFrame = np.zeros((4,4))
-        camFrame[0:3] = np.matmul(self.invIntrinsicCameraMatrix,pxFrame)
+        #Position in cameraFrame
+        camFrame[0:3] = Zc*np.matmul(self.invIntrinsicCameraMatrix,pxFrame)
+        #Place orientation of block in camera Frame, can optionally place this in worldframe instead since we dont account for skew anyways
         camFrame[0:3,0:3] = np.array([[np.cos(theta), -np.sin(theta), 0],
                                        [np.sin(theta), np.cos(theta), 0],
-                                       [0, 0, 0]])
+                                       [0, 0, 1]])
         camFrame[3,3] = 1
 
         worldFrame = np.matmul(self.invExtrinsicCameraMatrix, camFrame)
@@ -499,6 +503,40 @@ class Camera():
             pixel_coords = 1/Zc*np.matmul(self.intrinsic_matrix,camera_coords[0:3])[0:2]
             #print(pixel_coords)
             self.GridFrame = cv2.circle(self.GridFrame, (int(pixel_coords[0]), int(pixel_coords[1])), 5, (0,0,255), 1)
+
+    def block_in_zone(self,zone):
+        #Takes two world points that define a zone. If any contours are detected, then the zone is determined to have a block in it
+        UR = self.WorldtoPixel(zone[0]).astype(int)[0]
+
+        LL = self.WorldtoPixel(zone[1]).astype(int)[0]
+ 
+        UR = tuple(UR)
+        LL = tuple(LL)
+
+        mask = np.zeros_like(self.DepthFrameRaw, dtype=np.uint8)
+        cv2.rectangle(mask, UR, LL, 255, cv2.FILLED)
+        thresh = cv2.bitwise_and(cv2.inRange(self.DepthFrameProcessed, 15, 100), mask)
+
+        _, contour,_ = cv2.findContours(thresh,cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        if contour == []:
+            return False
+        else:
+            print('Block in zone')
+            return contour
+
+    def contour_id(self, ref_contour):
+        #Given a reference contour, find the block that is closest to that contour
+        rect = cv2.minAreaRect(ref_contour)
+        xy_ref = np.array(list(rect[0]))
+        min_dist = (np.inf, None)        
+        for idx, block in enumerate(self.blockData):
+            blockFrame = block[0]
+            xy = blockFrame[-1,0:2]
+            d = np.linalg.norm(xy_ref - xy)
+            if d < min_dist[0]:
+                min_dist = (d, idx)
+        return self.blockData[min_dist[1]]
 
 class ImageListener:
     def __init__(self, topic, camera):

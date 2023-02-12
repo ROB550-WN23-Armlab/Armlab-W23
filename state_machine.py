@@ -85,6 +85,11 @@ class StateMachine():
 
         self.next_small_color = 'red'
 
+        self.init1 = True
+        self.init2 = True
+        self.init3 = True
+        self.init4 = True
+
     def set_next_state(self, state):
         """!
         @brief      Sets the next state.
@@ -162,6 +167,9 @@ class StateMachine():
 
         if self.next_state == "event4":
             self.event4()            
+
+        if self.next_state == "test":
+            self.test()
     """Functions run for each state"""
 
     def manual(self):
@@ -616,24 +624,63 @@ class StateMachine():
         self.status_message = "Running Event 1"
         self.current_state = "event1"
 
+        if self.init1:
+            self.smallBlockPlace1 = np.zeros((4,4))
+            self.smallBlockPlace1[0:3,0:3] = np.eye((3,3))
+            self.smallBlockPlace1[-1,:] = 50*np.array([-3, -2, 0, 1])
+            self.bigBlockPlace1 = self.smallBlockPlace1.copy()
+            self.bigBlockPlace1[-1,:] = 50*np.array([3, -2, 0, 1])
+            self.init1 = False
+
+        self.rxarm.sleep() 
+        #TODO: Ensure that block detection only happens once arm is fully slept
         self.detect_blocks_once()
+        
+        #Ensure that there are no blocks in negative zone
+        UL = 50*np.array([9,1.5,0])
+        LR = 50*np.array([4,-2.5,0])
+        zone = [UR, LL]
+        BIZ = self.camera.block_in_zone(zone)
+        if BIZ:
+            blocks_to_move = []
+            for block in BIZ:
+                blocks_to_move.append(self.camera.contour_id(block))
+        #blocks_to_move now contains blockData of blocks that need to be moved from the zone
+        #TODO: MOVE BLOCKS
+
+        #Ensure that there are no blocks in positive zone
+        UL = 50*np.array([-4,1.5,0])
+        LR = 50*np.array([-9,-2.5,0])
+        zone = [UR, LL]
+        BIZ = self.camera.block_in_zone(zone)
+        if BIZ:
+            blocks_to_move = []
+            for block in BIZ:
+                blocks_to_move.append(self.camera.contour_id(block))
+        #TODO: MOVE BLOCKS
+        
         moves = 0
         for block in self.camera.blockData:
             block_Frame = block[0]
             x = block_Frame[3,0]
             block_type = block[5]
 
+            #Move small blocks to negative block area
             if x>=0 and block_type == 'Small Block':
-                pass
+                pick_up_block(block_Frame)
+                place_block(self.smallBlockPlace1)
                 moves += 1
-                #Move to negative block area
-            elif x=<0 and block_type == 'Big Block'
-                pass
+            #Move big blocks to positive block araea
+            elif x<=0 and block_type == 'Big Block':
+                pick_up_block(block_Frame)
+                place_block(self.bigBlockPlace1)
                 moves +=1
-                #Move to positive block area
+
+        #Done if robot determined that there was nothin to move
         if moves == 0:
             self.next_state = 'idle'
-            
+        else:
+            self.next_state = 'executeAndReturn'
         '''
         count = self.waypoint_grip[-1] 
         if self.camera.new_click:
@@ -706,9 +753,18 @@ class StateMachine():
         #from normal block detection and checking if there is a significant difference in the countour width and height
         # Can also try checking this by seeing if any of the heights are reasonable multiples of small blocks(n*25) or of big blocks (n*37.5)        
 
-        self.detect_blocks_once()
+        if self.init2:
+            self.smallBlockPlace1 = np.zeros((4,4))
+            self.smallBlockPlace1[0:3,0:3] = np.eye((3,3))
+            self.smallBlockPlace1[-1,:] = 50*np.array([-3, -2, 0, 1])
+            self.bigBlockPlace1 = self.smallBlockPlace1.copy()
+            self.bigBlockPlace1[-1,:] = 50*np.array([3, -2, 0, 1])
+            self.init2 = False
 
+        self.rxarm.sleep() 
+        #TODO: Ensure that block detection only happens once arm is fully slept
         #Pick block tower position
+        self.detect_blocks_once()
 
         moves = 0
         for block in self.camera.blockData:
@@ -720,7 +776,7 @@ class StateMachine():
                 pass
                 moves += 1
                 #Move to negative block area
-            elif x=<0 and block_type == 'Big Block'
+            elif x<=0 and block_type == 'Big Block':
                 pass
                 moves +=1
                 #Move to positive block area
@@ -829,11 +885,87 @@ class StateMachine():
         self.camera.detectBlocksInDepthImage()
         self.camera.blockDetector()
 
+    def pick_up_block(self, pickupFrame):
+        """!
+        @brief      Adds waypoints to pick up block
+        """        
+        self.waypoints = []
+        self.waypoint_grip = []
+
+        approachFrame = pickupFrame.copy()
+        approachFrame[-1,2] += 50
+        pickupFrame[-1,2] -= 10
+
+        #TODO: write IK function to accomplish the rest of this
+        #approach = IK(approachFrame)        
+        #pickup = IK(pickupFrame)        
+        
+        self.waypoint.append(approach)
+        self.waypoint_grip.append(0)
+
+        self.waypoint.append(pickup)
+        self.waypoint_grip.append(0)
+
+        self.waypoint.append(pickup)
+        self.waypoint_grip.append(1)
+
+        self.waypoint.append(approach)
+        self.waypoint_grip.append(1)
+
+    def place_block(self, placeFrame):
+        """!
+        @brief      Adds waypoints to place block
+        """                
+        self.waypoints = []
+        self.waypoint_grip = []
+
+        approachFrame = placeFrame.copy()
+        approachFrame[-1,2] += 50
+        palceFrame[-1,2] -= 10
+
+        #TODO: write IK function to accomplish the rest of this
+        #approach = IK(approachFrame)        
+        #drop = IK(placeFrame)        
+        
+        self.waypoint.append(approach)
+        self.waypoint_grip.append(1)
+
+        self.waypoint.append(drop)
+        self.waypoint_grip.append(1)
+
+        self.waypoint.append(pickup)
+        self.waypoint_grip.append(0)
+
+        self.waypoint.append(approach)
+        self.waypoint_grip.append(0)        
 
     def next_color(self, current_color):
         #Determines next color in ROYGBV
         current_color_idx = self.ROYGBV_idx[current_color]
         return ROYGBV[(current_color_idx+1)%6 ]
+
+#Testing self.camera.PxFrame2WorldFrame()
+    def test(self):
+        self.detect_blocks_once()
+        print(self.camera.blockData[0][0])    
+        self.next_state = 'idle'
+#Testing block_in_zone
+'''
+    def test(self):
+        UR = 50*np.array([0,8.5,0])
+        LL = 50*np.array([4,4.5,0])
+        zone = [UR, LL]
+        BIZ = self.camera.block_in_zone(zone)
+
+        if BIZ:
+            self.detect_blocks_once()
+            blocks_to_move = []
+            for block in BIZ:
+                blocks_to_move.append(self.camera.contour_id(block))            
+            print(blocks_to_move)
+            next_state = 'idle'
+'''
+
 
 class StateMachineThread(QThread):
     """!
