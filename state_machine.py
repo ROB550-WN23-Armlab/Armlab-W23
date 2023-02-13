@@ -9,7 +9,7 @@ import cv2
 import math
 import sys
 import os
-from kinematics import IK_geometric_two
+from kinematics import IK_geometric_two, IK_geometric_event_1
 
 class StateMachine():
     """!
@@ -623,10 +623,11 @@ class StateMachine():
 
         self.status_message = "Running Event 1"
         self.current_state = "event1"
+        
 
         if self.init1:
             self.smallBlockPlace1 = np.zeros((4,4))
-            self.smallBlockPlace1[0:3,0:3] = np.eye((3,3))
+            self.smallBlockPlace1[0:3,0:3] = np.eye(3,3)
             self.smallBlockPlace1[-1,:] = 50*np.array([-3, -2, 0, 1])
             self.bigBlockPlace1 = self.smallBlockPlace1.copy()
             self.bigBlockPlace1[-1,:] = 50*np.array([3, -2, 0, 1])
@@ -667,13 +668,13 @@ class StateMachine():
 
             #Move small blocks to negative block area
             if x>=0 and block_type == 'Small Block':
-                pick_up_block(block_Frame)
-                place_block(self.smallBlockPlace1)
+                pick_up_block(block_Frame,"down")
+                place_block(self.smallBlockPlace1,"down")
                 moves += 1
             #Move big blocks to positive block araea
             elif x<=0 and block_type == 'Big Block':
-                pick_up_block(block_Frame)
-                place_block(self.bigBlockPlace1)
+                pick_up_block(block_Frame,"down")
+                place_block(self.bigBlockPlace1,"down")
                 moves +=1
 
         #Done if robot determined that there was nothin to move
@@ -885,7 +886,7 @@ class StateMachine():
         self.camera.detectBlocksInDepthImage()
         self.camera.blockDetector()
 
-    def pick_up_block(self, pickupFrame):
+    def pick_up_block(self, pickupFrame, direction):
         """!
         @brief      Adds waypoints to pick up block
         """        
@@ -893,26 +894,26 @@ class StateMachine():
         self.waypoint_grip = []
 
         approachFrame = pickupFrame.copy()
-        approachFrame[-1,2] += 50
-        pickupFrame[-1,2] -= 10
+        approachFrame[2,-1] += 100
+        pickupFrame[2,-1] += 10
 
         #TODO: write IK function to accomplish the rest of this
-        #approach = IK(approachFrame)        
-        #pickup = IK(pickupFrame)        
+        approach = IK_geometric_event_1(self.rxarm.dh_params, approachFrame, direction)     
+        pickup = IK_geometric_event_1(self.rxarm.dh_params, pickupFrame, direction)        
         
-        self.waypoint.append(approach)
+        self.waypoints.append(approach)
         self.waypoint_grip.append(0)
 
-        self.waypoint.append(pickup)
+        self.waypoints.append(pickup)
         self.waypoint_grip.append(0)
 
-        self.waypoint.append(pickup)
+        self.waypoints.append(pickup)
         self.waypoint_grip.append(1)
 
-        self.waypoint.append(approach)
+        self.waypoints.append(approach)
         self.waypoint_grip.append(1)
 
-    def place_block(self, placeFrame):
+    def place_block(self, placeFrame, direction):
         """!
         @brief      Adds waypoints to place block
         """                
@@ -920,23 +921,23 @@ class StateMachine():
         self.waypoint_grip = []
 
         approachFrame = placeFrame.copy()
-        approachFrame[-1,2] += 50
-        palceFrame[-1,2] -= 10
+        approachFrame[2,-1] += 100
+        placeFrame[2,-1] -= 10
 
         #TODO: write IK function to accomplish the rest of this
-        #approach = IK(approachFrame)        
-        #drop = IK(placeFrame)        
+        approach = IK_geometric_event_1(self.rxarm.dh_params, approachFrame, direction)      
+        drop = IK_geometric_event_1(self.rxarm.dh_params, placeFrame, direction)        
         
-        self.waypoint.append(approach)
+        self.waypoints.append(approach)
         self.waypoint_grip.append(1)
 
-        self.waypoint.append(drop)
+        self.waypoints.append(drop)
         self.waypoint_grip.append(1)
 
-        self.waypoint.append(pickup)
+        self.waypoints.append(drop)
         self.waypoint_grip.append(0)
 
-        self.waypoint.append(approach)
+        self.waypoints.append(approach)
         self.waypoint_grip.append(0)        
 
     def next_color(self, current_color):
@@ -947,8 +948,16 @@ class StateMachine():
 #Testing self.camera.PxFrame2WorldFrame()
     def test(self):
         self.detect_blocks_once()
-        print(self.camera.blockData[0][0])    
-        self.next_state = 'idle'
+        # print(self.camera.blockData[0][0])
+        # print('\n') 
+        self.pick_up_block(self.camera.blockData[0][0],"down")
+        # print(self.waypoints)
+        # print('\n') 
+        bigBlockPlace1 = self.camera.blockData[0][0].copy()
+        bigBlockPlace1[0][-1] -= 250
+        self.place_block(bigBlockPlace1,"down")   
+        self.next_state = "execute"
+
 #Testing block_in_zone
 '''
     def test(self):
