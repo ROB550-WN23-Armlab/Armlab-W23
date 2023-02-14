@@ -631,58 +631,63 @@ class StateMachine():
             self.smallBlockPlace1 = np.zeros((4,4))
             self.smallBlockPlace1[0:3,0:3] = get_R_from_euler_angles(0.0,np.pi,0.0)
             self.bigBlockPlace1 = self.smallBlockPlace1.copy()
-            self.smallBlockPlace1[:,-1] = 50*np.array([-2, -1, 0, 1])
-            self.bigBlockPlace1[:,-1] = 50*np.array([2, -1, 0, 1])
+            self.smallBlockPlace1[:,-1] = 50*np.array([-2, -2.5, 0, 1/50])
+            self.bigBlockPlace1[:,-1] = 50*np.array([2, -2.5, 0, 1/50])
             self.init1 = False
 
         self.rxarm.sleep() 
         #TODO: Ensure that block detection only happens once arm is fully slept
         self.detect_blocks_once()
         
-        #Ensure that there are no blocks in negative zone
-        UL = 50*np.array([9,1.5,0])
-        LR = 50*np.array([4,-2.5,0])
-        zone = [UL, LR]
-        BIZ = self.camera.block_in_zone(zone)
-        if BIZ:
-            blocks_to_move = []
-            for block in BIZ:
-                blocks_to_move.append(self.camera.contour_id(block))
-        #blocks_to_move now contains blockData of blocks that need to be moved from the zone
-        #TODO: MOVE BLOCKS
+        # #Ensure that there are no blocks in negative zone
+        # UL = 50*np.array([9,1.5,0])
+        # LR = 50*np.array([4,-2.5,0])
+        # zone = [UL, LR]
+        # BIZ = self.camera.block_in_zone(zone)
+        # if BIZ:
+        #     blocks_to_move = []
+        #     for block in BIZ:
+        #         blocks_to_move.append(self.camera.contour_id(block))
+        # #blocks_to_move now contains blockData of blocks that need to be moved from the zone
+        # #TODO: MOVE BLOCKS
 
-        #Ensure that there are no blocks in positive zone
-        UL = 50*np.array([-4,1.5,0])
-        LR = 50*np.array([-9,-2.5,0])
-        zone = [UL, LR]
-        BIZ = self.camera.block_in_zone(zone)
-        if BIZ:
-            blocks_to_move = []
-            for block in BIZ:
-                blocks_to_move.append(self.camera.contour_id(block))
-        #TODO: MOVE BLOCKS
+        # #Ensure that there are no blocks in positive zone
+        # UL = 50*np.array([-4,1.5,0])
+        # LR = 50*np.array([-9,-2.5,0])
+        # zone = [UL, LR]
+        # BIZ = self.camera.block_in_zone(zone)
+        # if BIZ:
+        #     blocks_to_move = []
+        #     for block in BIZ:
+        #         blocks_to_move.append(self.camera.contour_id(block))
+        # #TODO: MOVE BLOCKS
         
         moves = 0
         for block in self.camera.blockData:
             block_Frame = block[0]
             x = block_Frame[3,0]
+            y = block_Frame[3,1]
             block_type = block[5]
 
             #Move small blocks to negative block area
-            if x>=0 and block_type == 'Small Block':
-                self.pick_up_block(block_Frame,"down",15)
+            if x>=0 and y>=0  and block_type == 'Small Block':
+                self.pick_up_block(block_Frame,"down",5)
                 print(self.smallBlockPlace1)
                 print('\n')
                 self.smallBlockPlace1[0,-1] -= 50
                 print(self.smallBlockPlace1)
                 print('\n')
-                self.place_block(self.smallBlockPlace1,"down",15)
+                self.place_block(self.smallBlockPlace1,"down",5)
                 moves += 1
             #Move big blocks to positive block araea
-            elif x<=0 and block_type == 'Big Block':
-                self.pick_up_block(block_Frame,"down", 30)
-                self.bigBlockPlace1[0,-1] += 75
-                self.place_block(self.bigBlockPlace1,"down",30)
+            elif x<=0 and y>=0 and block_type == 'Big Block':
+                self.pick_up_block(block_Frame,"down", 10)
+                if self.bigBlockPlace1[0,-1] < 350 :
+                    self.bigBlockPlace1[0,-1] += 50
+                else:
+                    self.bigBlockPlace1[1,-1] += 100
+                    self.bigBlockPlace1[0,-1] = 50*-2.5
+                self.place_block(self.bigBlockPlace1,"down",10)
                 moves +=1
 
         #Done if robot determined that there was nothin to move
@@ -932,9 +937,14 @@ class StateMachine():
         placeFrame[2,-1] += offset
 
         #TODO: write IK function to accomplish the rest of this
-        approach = IK_geometric_event_1(self.rxarm.dh_params, approachFrame, direction)      
+        approach = IK_geometric_event_1(self.rxarm.dh_params, approachFrame, direction)     
         drop = IK_geometric_event_1(self.rxarm.dh_params, placeFrame, direction)        
-        
+        if drop[0] <= 0:
+            drop[-1] += math.pi/2
+            approach[-1] += math.pi/2
+        else:   
+            drop[-1] -= math.pi/2
+            approach[-1] -= math.pi/2
         self.waypoints.append(approach)
         self.waypoint_grip.append(1)
 

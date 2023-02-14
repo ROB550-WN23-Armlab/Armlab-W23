@@ -382,6 +382,9 @@ class Camera():
 
         _, contour, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
+        if contour == []:
+            print('Failed to redetect')
+            return False
         return contour
 
     def blockDetector(self):
@@ -397,9 +400,18 @@ class Camera():
         #TODO: Draw labels on something other than DepthFrameRGB, VideoFrame refreshes too fast or something so it doesnt work that well there :/
 
         self.blockData = []
+
+        if self.contours == []:
+            print('No contours detected')
+            return False
+
         for contour in self.contours:
             #Rerun block detection masking for just this contour to get data only on top block in stack
-            contour = self.block_redetect("DepthFrameProcessed", contour)[0]
+            if contour == []:
+                #Failed to find contour
+                return False
+            else:
+                contour = self.block_redetect("DepthFrameProcessed", contour)[0]
             VideoFrameLAB = cv2.cvtColor(VFcopy, cv2.COLOR_RGB2LAB)
             contour_color, LAB = self.retrieve_area_color(VideoFrameLAB, contour, "LAB")
     
@@ -470,7 +482,7 @@ class Camera():
             self.thresh = cv2.bitwise_and(cv2.inRange(self.DepthFrameProcessed, lower, upper), mask)
 
             #Morphological Filter
-            kernel = np.ones((8,8), dtype = np.uint8)
+            kernel = np.ones((4,4), dtype = np.uint8)
             #self.thresh = cv2.morphologyEx(self.thresh, cv2.MORPH_CLOSE, kernel)
 
             self.thresh = cv2.morphologyEx(self.thresh, cv2.MORPH_OPEN, kernel)

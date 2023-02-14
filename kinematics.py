@@ -105,7 +105,7 @@ def get_euler_angles_from_T(T):
     R = T[0:3,0:3]  #Rotation Matrix
 
     # try:
-    theta = math.atan2(math.sqrt(1-round((R[2][2])**2)),R[2][2])
+    theta = math.atan2(math.sqrt(1-((R[2][2])**2)),R[2][2])
     # print(R)
     # print('\n')
     # print(theta)
@@ -623,31 +623,44 @@ def IK_geometric_event_1(dh_params, T, direction):
     T_A1 = FK_dh(dh_params, joint_angles_A1, 5)
     T_A2 = FK_dh(dh_params, joint_angles_A2, 5)
 
-    try: 
-        pose_A1 = get_pose_from_T(T_A1)
-        if np.allclose(pos_ee, np.array(pose_A1[0:3]), rtol=1e-04, atol=1e-05, equal_nan=False):
-            # print(T_A1)
-            # print('\n')
-            # print(np.array(pose_A1[0:3]))
-            # print('\n')
-            if direction == "flat":
-                q7 = 0
-            else:
-                q7 = q6_A1
-            return [q1,q2,q3,q4_A1,q7]
-        else:
-            q8 = error_intentional
-    except:
-        pose_A2 = get_pose_from_T(T_A2)
-        # print(T_A2)
-        # print('\n')
-        # print(np.array(pose_A2[0:3]))
-        # print('\n')
-        if direction == "flat":
-            q7 = 0
-        else:
-            q7 = q6_A2
-        return [q1,q2,q3,q4_A2,q7]
+
+    # pose_A1 = get_pose_from_T(T_A1)
+    # if np.allclose(pos_ee, np.array(pose_A1[0:3]), rtol=1e-04, atol=1e-05, equal_nan=False):
+    # print(T_A1)
+    # print('\n')
+    # print(np.array(pose_A1[0:3]))
+    # print('\n')
+    if direction == "flat":
+        q7 = 0
+    else:
+        q7 = q6_A1
+    return [q1,q2,q3,q4_A1,q7]
+
+    # try:
+    #     pose_A1 = get_pose_from_T(T_A1)
+    #     if np.allclose(pos_ee, np.array(pose_A1[0:3]), rtol=1e-04, atol=1e-05, equal_nan=False):
+    #         # print(T_A1)
+    #         # print('\n')
+    #         # print(np.array(pose_A1[0:3]))
+    #         # print('\n')
+    #         if direction == "flat":
+    #             q7 = 0
+    #         else:
+    #             q7 = q6_A1
+    #         return [q1,q2,q3,q4_A1,q7]
+    #     else:
+    #         q8 = error_intentional
+    # except:
+    #     pose_A2 = get_pose_from_T(T_A2)
+    #     # print(T_A2)
+    #     # print('\n')
+    #     # print(np.array(pose_A2[0:3]))
+    #     # print('\n')
+    #     if direction == "flat":
+    #         q7 = 0
+    #     else:
+    #         q7 = q6_A2
+    #     return [q1,q2,q3,q4_A2,q7]
 
     # if direction=="down":
     #     q4 = q2-q3-math.pi/2  
