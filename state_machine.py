@@ -9,7 +9,7 @@ import cv2
 import math
 import sys
 import os
-from kinematics import IK_geometric_two, IK_geometric_event_1
+from kinematics import IK_geometric_two, IK_geometric_event_1, get_R_from_euler_angles
 
 class StateMachine():
     """!
@@ -624,13 +624,15 @@ class StateMachine():
         self.status_message = "Running Event 1"
         self.current_state = "event1"
         
+        self.waypoints = []
+        self.waypoint_grip = []
 
         if self.init1:
             self.smallBlockPlace1 = np.zeros((4,4))
-            self.smallBlockPlace1[0:3,0:3] = np.eye(3,3)
-            self.smallBlockPlace1[-1,:] = 50*np.array([-3, -2, 0, 1])
+            self.smallBlockPlace1[0:3,0:3] = get_R_from_euler_angles(0.0,np.pi,0.0)
             self.bigBlockPlace1 = self.smallBlockPlace1.copy()
-            self.bigBlockPlace1[-1,:] = 50*np.array([3, -2, 0, 1])
+            self.smallBlockPlace1[:,-1] = 50*np.array([-2, -1, 0, 1])
+            self.bigBlockPlace1[:,-1] = 50*np.array([2, -1, 0, 1])
             self.init1 = False
 
         self.rxarm.sleep() 
@@ -640,7 +642,7 @@ class StateMachine():
         #Ensure that there are no blocks in negative zone
         UL = 50*np.array([9,1.5,0])
         LR = 50*np.array([4,-2.5,0])
-        zone = [UR, LL]
+        zone = [UL, LR]
         BIZ = self.camera.block_in_zone(zone)
         if BIZ:
             blocks_to_move = []
@@ -652,7 +654,7 @@ class StateMachine():
         #Ensure that there are no blocks in positive zone
         UL = 50*np.array([-4,1.5,0])
         LR = 50*np.array([-9,-2.5,0])
-        zone = [UR, LL]
+        zone = [UL, LR]
         BIZ = self.camera.block_in_zone(zone)
         if BIZ:
             blocks_to_move = []
@@ -668,13 +670,19 @@ class StateMachine():
 
             #Move small blocks to negative block area
             if x>=0 and block_type == 'Small Block':
-                pick_up_block(block_Frame,"down")
-                place_block(self.smallBlockPlace1,"down")
+                self.pick_up_block(block_Frame,"down",15)
+                print(self.smallBlockPlace1)
+                print('\n')
+                self.smallBlockPlace1[0,-1] -= 50
+                print(self.smallBlockPlace1)
+                print('\n')
+                self.place_block(self.smallBlockPlace1,"down",15)
                 moves += 1
             #Move big blocks to positive block araea
             elif x<=0 and block_type == 'Big Block':
-                pick_up_block(block_Frame,"down")
-                place_block(self.bigBlockPlace1,"down")
+                self.pick_up_block(block_Frame,"down", 30)
+                self.bigBlockPlace1[0,-1] += 75
+                self.place_block(self.bigBlockPlace1,"down",30)
                 moves +=1
 
         #Done if robot determined that there was nothin to move
@@ -886,16 +894,16 @@ class StateMachine():
         self.camera.detectBlocksInDepthImage()
         self.camera.blockDetector()
 
-    def pick_up_block(self, pickupFrame, direction):
+    def pick_up_block(self, pickupFrame, direction, offset):
         """!
         @brief      Adds waypoints to pick up block
         """        
-        self.waypoints = []
-        self.waypoint_grip = []
+        # self.waypoints = []
+        # self.waypoint_grip = []
 
         approachFrame = pickupFrame.copy()
         approachFrame[2,-1] += 100
-        pickupFrame[2,-1] += 10
+        pickupFrame[2,-1] -= offset
 
         #TODO: write IK function to accomplish the rest of this
         approach = IK_geometric_event_1(self.rxarm.dh_params, approachFrame, direction)     
@@ -913,16 +921,15 @@ class StateMachine():
         self.waypoints.append(approach)
         self.waypoint_grip.append(1)
 
-    def place_block(self, placeFrame, direction):
+    def place_block(self, placeFrame, direction, offset):
         """!
         @brief      Adds waypoints to place block
         """                
-        self.waypoints = []
-        self.waypoint_grip = []
-
+        # self.waypoints = []
+        # self.waypoint_grip = []
         approachFrame = placeFrame.copy()
         approachFrame[2,-1] += 100
-        placeFrame[2,-1] -= 10
+        placeFrame[2,-1] += offset
 
         #TODO: write IK function to accomplish the rest of this
         approach = IK_geometric_event_1(self.rxarm.dh_params, approachFrame, direction)      
@@ -956,7 +963,7 @@ class StateMachine():
         bigBlockPlace1 = self.camera.blockData[0][0].copy()
         bigBlockPlace1[0][-1] -= 250
         self.place_block(bigBlockPlace1,"down")   
-        self.next_state = "execute"
+        self.next_state = "executeAndReturn"
 
 #Testing block_in_zone
 '''

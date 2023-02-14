@@ -105,7 +105,7 @@ def get_euler_angles_from_T(T):
     R = T[0:3,0:3]  #Rotation Matrix
 
     # try:
-    theta = math.atan2(math.sqrt(1-(R[2][2])**2),R[2][2])
+    theta = math.atan2(math.sqrt(1-round((R[2][2])**2)),R[2][2])
     # print(R)
     # print('\n')
     # print(theta)
