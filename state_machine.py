@@ -647,7 +647,7 @@ class StateMachine():
             self.smallBlockPlace1 = np.zeros((4,4))
             self.smallBlockPlace1[0:3,0:3] = get_R_from_euler_angles(0.0,np.pi,0.0)
             self.bigBlockPlace1 = self.smallBlockPlace1.copy()
-            self.smallBlockPlace1[:,-1] = 50*np.array([-6, -2.5, 0, 1/50])
+            self.smallBlockPlace1[:,-1] = 50*np.array([-2.5, -2.5, 0, 1/50])
             self.bigBlockPlace1[:,-1] = 50*np.array([2.5, -2.5, 0, 1/50])
             self.init1 = False
 
@@ -665,14 +665,14 @@ class StateMachine():
             y = block_Frame[1,3]
             block_type = block[5]
 
-            print(block_Frame[:,-1])
-            print(block_type)
-            print(theta)
-            print('')
+            # print(block_Frame[:,-1])
+            # print(block_type)
+            # print(theta)
+            # print('')
 
             #Move small blocks to negative block area
             if y>=0 and block_type == 'Small Block':
-                self.pick_up_block(block_Frame,theta,5)
+                self.pick_up_block(block_Frame,theta,0)
                 self.place_block(self.smallBlockPlace1,"down",0)
                 self.smallBlockPlace1[0,-1] -= 50
                 moves += 1
@@ -685,7 +685,7 @@ class StateMachine():
                     self.bigBlockPlace1[1,-1] += 70
                     self.bigBlockPlace1[0,-1] = 50*-2.5
 
-                self.place_block(self.bigBlockPlace1,"down",33)
+                self.place_block(self.bigBlockPlace1,"down",20)
                 moves +=1
         #Done if robot determined that there was nothin to move
         if moves == 0:
@@ -700,6 +700,9 @@ class StateMachine():
         self.status_message = "Running Event 2"
         self.current_state = "event2"
 
+        self.waypoints = []
+        self.waypoint_grip = []
+
         #This code framework does not currently account for small blocks hidden under large blocks, this can maybe be accounted for by separating blockredetection
         #from normal block detection and checking if there is a significant difference in the countour width and height
         # Can also try checking this by seeing if any of the heights are reasonable multiples of small blocks(n*25) or of big blocks (n*37.5)        
@@ -707,9 +710,9 @@ class StateMachine():
         if self.init2:
             self.smallBlockPlace2 = np.zeros((4,4))
             self.smallBlockPlace2[0:3,0:3] = get_R_from_euler_angles(0.0,np.pi,0.0)
-            self.bigBlockPlace2 = self.smallBlockPlace1.copy()
-            self.smallBlockPlace2[:,-1] = 50*np.array([-6, -2.5, 0, 1/50])
-            self.bigBlockPlace2[:,-1] = 50*np.array([6, -2.5, 0, 1/50])
+            self.bigBlockPlace2 = self.smallBlockPlace2.copy()
+            self.smallBlockPlace2[:,-1] = 50*np.array([-4, -2.5, 0, 1/50])
+            self.bigBlockPlace2[:,-1] = 50*np.array([4, -2.5, 0, 1/50])
             self.init1 = False
 
         self.rxarm.sleep() 
@@ -733,9 +736,9 @@ class StateMachine():
             #Move small blocks to negative block area
             if y>=0 and block_type == 'Small Block':
                 self.pick_up_block(block_Frame,theta,5)
-                self.place_block(self.smallBlockPlace2,"down",0)
+                self.place_block(self.smallBlockPlace2,"down",10)
                 if self.smallStackCt2 < 2:
-                    self.smallBlockPlace2[2, -1] += 25
+                    self.smallBlockPlace2[2, -1] += 23
                 else:
                     self.smallBlockPlace2[2, -1] = 0
                     self.smallBlockPlace2[0,-1] -= 50
@@ -746,12 +749,12 @@ class StateMachine():
             #Move big blocks to positive block araea
             elif y>=0 and block_type == 'Big Block':
                 self.pick_up_block(block_Frame,theta, 10)
-                self.place_block(self.bigBlockPlace2,"down",33)
+                self.place_block(self.bigBlockPlace2,"down",25)
                 if self.bigStackCt2 < 2:
-                    self.bigBlockPlace2[2, -1] += 25
+                    self.bigBlockPlace2[2, -1] += 33
                 else:
                     self.bigBlockPlace2[2, -1] = 0
-                    self.bigBlockPlace2[0,-1] += 50
+                    self.bigBlockPlace2[0,-1] += 75
                     self.bigStackCt2 = -1
 
                 self.bigStackCt2 += 1
@@ -781,7 +784,7 @@ class StateMachine():
             self.smallBlockPlace3 = np.zeros((4,4))
             self.smallBlockPlace3[0:3,0:3] = get_R_from_euler_angles(0.0,np.pi,0.0)
             self.bigBlockPlace3 = self.smallBlockPlace3.copy()
-            self.smallBlockPlace3[:,-1] = 50*np.array([0, -2.5, 0, 1/50])
+            self.smallBlockPlace3[:,-1] = 50*np.array([-0, -2.5, 0, 1/50])
             self.bigBlockPlace3[:,-1] = 50*np.array([0, -2.5, 0, 1/50])
             self.init3 = False
 
@@ -799,25 +802,26 @@ class StateMachine():
             x = block_Frame[0,3]
             y = block_Frame[1,3]
             block_type = block[5]
-            color = block_Frame[1]
-            print(block_Frame[:,-1])
-            print(block_type)
-            print(theta)
-            print(color)
-            print('')
+            color = block[1]
+            # print(block_Frame)
+            # print(block_type)
+            # print(theta)
+            # print(color)
+            # print('')
 
             #Move small blocks to appropriate color position
             if y>=0 and block_type == 'Small Block':
                 self.pick_up_block(block_Frame,theta,5)
                 place_color = self.smallBlockPlace3.copy()
-                place_color[0,-1] = self.event3small[color]
+                place_color[0,-1] = 30*self.event3small[color]
                 self.place_block(place_color,"down",0)
                 moves += 1
             #Move big blocks to positive block araea
             elif y>=0 and block_type == 'Big Block':
                 self.pick_up_block(block_Frame,theta, 10)
                 place_color = self.bigBlockPlace3.copy()
-                place_color[0,-1] = self.event3big[color]            
+                print(self.event3big[color])
+                place_color[0,-1] = 50*self.event3big[color]            
                 self.place_block(place_color,"down",33)
                 moves +=1
         #Done if robot determined that there was nothin to move
@@ -842,7 +846,8 @@ class StateMachine():
         #This code framework does not currently account for small blocks hidden under large blocks, this can maybe be accounted for by separating blockredetection
         #from normal block detection and checking if there is a significant difference in the countour width and height
         # Can also try checking this by seeing if any of the heights are reasonable multiples of small blocks(n*25) or of big blocks (n*37.5)        
-
+        self.waypoints = []
+        self.waypoint_grip = []
 
         if self.init4:
             #Run event3 first so that we have an easy set of blocks to work with
@@ -937,7 +942,7 @@ class StateMachine():
             self.rxarm.sleep()
             rospy.sleep(2)
         else:
-            remain_ t = dur - (time.time() - self.now_b)
+            # remain_ t = dur - (time.time() - self.now_b)
             self.status_message =  "Time left to place new block: %0.2f "%remain_t
             
         
@@ -961,7 +966,7 @@ class StateMachine():
         # self.waypoint_grip = []
 
         approachFrame = pickupFrame.copy()
-        approachFrame[2,-1] += approach_height
+        approachFrame[2,-1] += 100
         if bonus_:
             approachFrame[2,-1] = 100        
         pickupFrame[2,-1] -= offset
@@ -982,6 +987,9 @@ class StateMachine():
         self.waypoints.append(approach)
         self.waypoint_grip.append(1)
 
+        # self.waypoints.append([0,0,0,0,0])
+        # self.waypoint_grip.append(1)
+
     def place_block(self, placeFrame, direction, offset, bonus_ = False):
         """!
         @brief      Adds waypoints to place block
@@ -989,7 +997,7 @@ class StateMachine():
         # self.waypoints = []
         # self.waypoint_grip = []
         approachFrame = placeFrame.copy()
-        approachFrame[2,-1] += approach_height
+        approachFrame[2,-1] += 100
         if bonus_:
             approachFrame[2,-1] = 100
         placeFrame[2,-1] += offset
@@ -1018,7 +1026,10 @@ class StateMachine():
         self.waypoint_grip.append(0)       
 
         self.waypoints.append(approach)
-        self.waypoint_grip.append(0)     
+        self.waypoint_grip.append(0)
+
+        # self.waypoints.append([0,0,0,0,0])
+        # self.waypoint_grip.append(0)     
 
     def next_color(self, current_color):
         #Determines next color in ROYGBV
@@ -1032,7 +1043,7 @@ class StateMachine():
         return(blockData[0][2,-1])
 #Testing color_sort
     def test(self):
-        print('wut')
+        # print('wut')
         self.next_state = 'idle'
         self.current_state = 'test'
         self.detect_blocks_once()
@@ -1040,9 +1051,9 @@ class StateMachine():
         for data in self.camera.blockData:
             print(data[1])
 
-        print('')
-        print('Sorting')
-        print('')
+        # print('')
+        # print('Sorting')
+        # print('')
         self.camera.blockData.sort(key=self.color_sort)
 
         for data in self.camera.blockData:
