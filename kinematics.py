@@ -471,10 +471,6 @@ def IK_geometric_two(dh_params, pose, direction):
     try: 
         pose_A1 = get_pose_from_T(T_A1)
         if np.allclose(pos_ee, np.array(pose_A1[0:3]), rtol=1e-04, atol=1e-05, equal_nan=False):
-            # print(T_A1)
-            # print('\n')
-            # print(np.array(pose_A1[0:3]))
-            # print('\n')
             if direction == "flat":
                 q7 = 0
             else:
@@ -484,10 +480,6 @@ def IK_geometric_two(dh_params, pose, direction):
             q8 = error_intentional
     except:
         pose_A2 = get_pose_from_T(T_A2)
-        # print(T_A2)
-        # print('\n')
-        # print(np.array(pose_A2[0:3]))
-        # print('\n')
         if direction == "flat":
             q7 = 0
         else:
@@ -503,7 +495,7 @@ def IK_geometric_two(dh_params, pose, direction):
 
     # return [q1_f,q2_f,q3_f,q4_f,q5_f]
 
-def IK_geometric_event_1(dh_params, T, direction):
+def IK_geometric_event_1(dh_params, T,thetaBlock):
     """!
     @brief      Get all possible joint configs that produce the pose.
 
@@ -517,50 +509,53 @@ def IK_geometric_event_1(dh_params, T, direction):
                 configuration
     """
     pose = get_pose_from_T(T)
-    phi = pose[3]
-    theta = pose[4]
-    psi = pose[5]
+    # phi = pose[3]
+    # theta = pose[4]
+    # psi = pose[5]
     # Defining co
     l1 = dh_params[1][0] # 205.73
     l2 = dh_params[2][0] # 200
     d1 = dh_params[0][2] # 103.91
     link6_len = dh_params[4][2]; 
     angle_offset = math.pi/2 - math.atan2(50,200)
-    # print(l1,l2,d1,link6_len,angle_offset)
-    # print('\n')
 
     # End Effector Location
     pos_ee = np.array([pose[0],pose[1],pose[2]])
     x = pos_ee[0]
     y = pos_ee[1]
     z = pos_ee[2]
-    # print(pos_ee)
-    # print('\n')
+
+
+    direction = "down"
 
     if direction=="down":
         pos_wrist = pos_ee + np.array([0,0,link6_len])
-        # print(pos_wrist)
-        # print('\n')
-        # print(link6_len)
-        # print('\n')
-        # R_0_5 = get_R_from_euler_angles(0.0,np.pi,0.0)
-        R_0_5 = get_R_from_euler_angles(phi,theta,psi)
-    elif direction=="flat":
+        R_0_5 = get_R_from_euler_angles(math.pi/2 + thetaBlock,np.pi,0.0)
+        ox = pos_wrist[0]
+        oy = pos_wrist[1]
+        oz = pos_wrist[2]
+        planar_x = math.sqrt(ox**2 + oy**2)
+        if planar_x <= 375:
+            direction = "down"
+        elif  planar_x <=550:
+            direction = "flat"
+        else:
+            print("OUTSIDE OF WORKSPACE!!!!!")
+            error
+
+    if direction=="flat":
         R_0_5 = get_R_from_euler_angles(math.atan2(pose[1],pose[0]),np.pi/2,0.0)
         pos_wrist = pos_ee - link6_len*np.matmul(R_0_5,np.array([0,0,1]))
 
-    # Wrist location
+            # Wrist location
     ox = pos_wrist[0]
     oy = pos_wrist[1]
     oz = pos_wrist[2]
-    # print(ox,oy,oz)
-    # print('\n')
+
     planar_x = math.sqrt(ox**2 + oy**2)
     planar_y = oz - d1
-    # print(planar_x)
-    # print('\n')
-    # print(planar_y)
-    # print('\n')
+
+
     # Q1 - Calculation 
     q1 = math.atan2(oy,ox) - np.pi/2.0
     if q1 < -np.pi:
@@ -633,7 +628,8 @@ def IK_geometric_event_1(dh_params, T, direction):
     if direction == "flat":
         q7 = 0
     else:
-        q7 = q6_A1
+        q7 = math.pi/2 + thetaBlock
+        #print(thetaBlock)
     return [q1,q2,q3,q4_A1,q7]
 
     # try:

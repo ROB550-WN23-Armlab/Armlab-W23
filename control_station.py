@@ -138,8 +138,11 @@ class Gui(QMainWindow):
         self.ui.btnUser8.setText('Event 4')
         self.ui.btnUser8.clicked.connect(partial(nxt_if_arm_init, 'event4'))        
 
-        self.ui.btnUser8.setText('Test Helper')
-        self.ui.btnUser8.clicked.connect(partial(nxt_if_arm_init, 'test'))       
+        self.ui.btnUser9.setText('Bonus ')
+        self.ui.btnUser9.clicked.connect(partial(nxt_if_arm_init, 'bonus'))       
+
+        self.ui.btnUser10.setText('Test Helper')
+        self.ui.btnUser10.clicked.connect(partial(nxt_if_arm_init, 'test'))       
 
         # Sliders
         for sldr in self.joint_sliders:

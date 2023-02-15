@@ -80,7 +80,7 @@ class Camera():
         self.gridLR = None
         self.blockFrames = None
         self.detect = False
-        self.blockData = [] #Should be list of lists, inner list have structure of [WorldFrame, color, theta, w, h, block_type] 
+        self.blockData = [] #Should be list of lists, inner list have structure of [WorldFrame, color, theta, w, h, block_type, contour] 
 
         #Debuggin nums
         self.TotalCt = 0.
@@ -335,7 +335,7 @@ class Camera():
             d = np.linalg.norm(label['(w,h)'] - np.array([width, height]))
             if d < min_dist[0]:
                 min_dist = (d, label["id"])
-        if min_dist[0] > 5:
+        if min_dist[0] > 8:
             return 'Distractor'
         return min_dist[1]
 
@@ -407,17 +407,21 @@ class Camera():
 
         for contour in self.contours:
             #Rerun block detection masking for just this contour to get data only on top block in stack
-            if contour == []:
-                #Failed to find contour
+            contour = self.block_redetect("DepthFrameProcessed", contour)
+            if contour:
+                contour = contour[0]
+            else: 
+                print('Failed to redetect')
                 return False
-            else:
-                contour = self.block_redetect("DepthFrameProcessed", contour)[0]
             VideoFrameLAB = cv2.cvtColor(VFcopy, cv2.COLOR_RGB2LAB)
             contour_color, LAB = self.retrieve_area_color(VideoFrameLAB, contour, "LAB")
     
             rect = cv2.minAreaRect(contour)
             wh = rect[1]
-            theta = rect[2]
+            if wh[0] >= wh[1]:
+                theta = 90 + rect[2]
+            else:
+                theta = rect[2]
             block_type = self.block_label(rect)
 
             box = np.int0(cv2.boxPoints(rect))
@@ -431,17 +435,20 @@ class Camera():
                 cx = int(M['m10']/M['m00'])
                 cy = int(M['m01']/M['m00'])
                 blockFrame = self.PxFrame2WorldFrame([cx,cy],theta)
-                cv2.putText(contour_frame, contour_color, (cx-20, cy+40), font, 0.75,font_color , thickness=2)
+                #cv2.putText(contour_frame, contour_color, (cx-20, cy+40), font, 0.75,font_color , thickness=2)
                 cv2.putText(contour_frame, str(int(theta)), (cx-20, cy), font, 0.5, font_color, thickness=2)
                 cv2.putText(contour_frame, block_type, (cx-40, cy-50), font, 0.5, font_color, thickness=2)
                 #cv2.putText(contour_frame, "LAB: %0.1f, %0.1f" %LAB, (cx-20, cy-50), font, 0.5, (0,0,0), thickness=2)
                 cv2.drawContours(contour_frame,[box],0,font_color,2)
+                #cv2.putText(contour_frame, "Width: %.2f" %wh[0], (cx-40, cy-50), font, 0.5, font_color, thickness=2)
+                #cv2.putText(contour_frame, "Height: %.2f" %wh[1], (cx-40, cy+50), font, 0.5, font_color, thickness=2)
+
                 try:
                     _, _, height = self.block_height("DepthFrameProcessed", contour)
-                    cv2.putText(contour_frame, "Height: %.2f" %height, (cx-40, cy-30), font, 0.5, font_color, thickness=2)
+                    #cv2.putText(contour_frame, "Height: %.2f" %height, (cx-40, cy-30), font, 0.5, font_color, thickness=2)
                 except:#Issues with empty contours i think
                     print("Issue retrieving height")                    
-                data = [blockFrame, contour_color, theta, wh[0], wh[1], block_type]
+                data = [blockFrame, contour_color, theta, wh[0], wh[1], block_type, contour]
                 self.blockData.append(data)
 
             else:
