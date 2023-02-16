@@ -9,7 +9,7 @@ import cv2
 import math
 import sys
 import os
-from kinematics import IK_geometric_two, IK_geometric_event_1, get_R_from_euler_angles
+from kinematics import IK_geometric_two, IK_geometric_event_1, get_R_from_euler_angles, FK_dh, get_pose_from_T
 
 class StateMachine():
     """!
@@ -46,7 +46,7 @@ class StateMachine():
         self.current_waypoint = 0
         self.waypoint_grip = [0,0,0,0,0,0,0,0,0,0] #Read 1 as closed and 0 as open
         self.err = 0
-        self.thresh = 0.05
+        self.thresh = 0.025
         self.long_time = 0
         self.record = 0
         self.pts_obtained = 0
@@ -93,19 +93,19 @@ class StateMachine():
         self.smallStackCt2 = 0
         self.bigStackCt2 = 0
 
-        self.event3small = {'red': -7.5, 
-                            'orange': -6.5,
-                            'yellow': -5.5, 
-                            'green': -4.5, 
-                            'blue': -3.5, 
-                            'violet': -2.5}
+        self.event3small = {'red': -6.5, 
+                            'orange': -5.5,
+                            'yellow': -4.5, 
+                            'green': -3.5, 
+                            'blue': -2.5, 
+                            'violet': -1.5}
 
-        self.event3big =   {'red': 2.5, 
-                            'orange': 3.5,
-                            'yellow': 4.5, 
-                            'green': 5.5, 
-                            'blue': 6.5, 
-                            'violet': 7.5}            
+        self.event3big =   {'red': 1.5, 
+                            'orange': 2.5,
+                            'yellow': 3.5, 
+                            'green': 4.5, 
+                            'blue': 5.5, 
+                            'violet': 6.5}            
 
         self.Three2Four = False              
 
@@ -235,16 +235,16 @@ class StateMachine():
         #Calculate Joint Errors
         joint_errors = np.array(self.waypoints[self.current_waypoint]) - np.array(self.rxarm.get_positions())
         self.err = np.sqrt(np.mean(joint_errors**2))
-
         #Waypoint checking and actuation
         if (self.err < self.thresh) or (self.current_waypoint == 0) or (self.long_time):
+            print(get_pose_from_T(FK_dh(self.rxarm.dh_params, self.waypoints[self.current_waypoint], 5)))            
             self.rxarm.set_positions(self.waypoints[self.current_waypoint])          
             self.actuate_gripper(self.waypoint_grip[self.current_waypoint])
             self.current_waypoint += 1
             self.zTime = time.time()
             self.long_time = 0
         else:
-            if (time.time() - self.zTime >1.5):
+            if (time.time() - self.zTime >self.rxarm.moving_time):
                 self.long_time = 1
 
         #Record data
@@ -264,7 +264,8 @@ class StateMachine():
             print("Next State Equals")
             print(self.next_state)
             print('\n')
-        self.status_message = "State: Execute - Executing motion plan, Err =" + str(self.err) + "Time since cmd:" + str(time.time()-self.zTime)
+        cmd_time = time.time()-self.zTime
+        self.status_message = "State: Execute - Executing motion plan, Err = %0.2f Time since cmd: %0.2f MaxTime: %0.2f" %(self.err, cmd_time, self.rxarm.moving_time)  
 
     def calibrate(self):
         """!
@@ -651,8 +652,9 @@ class StateMachine():
             self.bigBlockPlace1[:,-1] = 50*np.array([2.5, -2.5, 0, 1/50])
             self.init1 = False
 
-        self.rxarm.sleep() 
-        rospy.sleep(3)
+        self.robot_home()
+        #self.rxarm.sleep() 
+        #rospy.sleep(3)
         #Ensure that block detection only happens once arm is fully slept
         self.detect_blocks_once()
         
@@ -784,7 +786,7 @@ class StateMachine():
             self.smallBlockPlace3 = np.zeros((4,4))
             self.smallBlockPlace3[0:3,0:3] = get_R_from_euler_angles(0.0,np.pi,0.0)
             self.bigBlockPlace3 = self.smallBlockPlace3.copy()
-            self.smallBlockPlace3[:,-1] = 50*np.array([-0, -2.5, 0, 1/50])
+            self.smallBlockPlace3[:,-1] = 50*np.array([0, -2.5, 0, 1/50])
             self.bigBlockPlace3[:,-1] = 50*np.array([0, -2.5, 0, 1/50])
             self.init3 = False
 
@@ -795,7 +797,9 @@ class StateMachine():
         
         moves = 0
         #Sort by color so that the blocks end up being added to waypoints in color order => blocks get placed in color order
-    
+        self.pre_process3()
+        #self.rxarm.set_moving_time(1.4)
+
         for block in self.camera.blockData:
             block_Frame = block[0]
             theta = block[2]
@@ -803,24 +807,26 @@ class StateMachine():
             y = block_Frame[1,3]
             block_type = block[5]
             color = block[1]
-            # print(block_Frame)
-            # print(block_type)
-            # print(theta)
-            # print(color)
-            # print('')
+
+            print(x)
+            print(y)
+            print(block_type)
+            print(theta)
+            print(color)
+            print('')
 
             #Move small blocks to appropriate color position
             if y>=0 and block_type == 'Small Block':
                 self.pick_up_block(block_Frame,theta,5)
                 place_color = self.smallBlockPlace3.copy()
-                place_color[0,-1] = 30*self.event3small[color]
+                place_color[0,-1] = 50*self.event3small[color]
+                print(50*self.event3small[color])
                 self.place_block(place_color,"down",0)
                 moves += 1
             #Move big blocks to positive block araea
             elif y>=0 and block_type == 'Big Block':
                 self.pick_up_block(block_Frame,theta, 10)
                 place_color = self.bigBlockPlace3.copy()
-                print(self.event3big[color])
                 place_color[0,-1] = 50*self.event3big[color]            
                 self.place_block(place_color,"down",33)
                 moves +=1
@@ -966,15 +972,18 @@ class StateMachine():
         # self.waypoint_grip = []
 
         approachFrame = pickupFrame.copy()
-        approachFrame[2,-1] += 100
+        approachFrame[2,-1] += 50
         if bonus_:
             approachFrame[2,-1] = 100        
         pickupFrame[2,-1] -= offset
 
         #TODO: write IK function to accomplish the rest of this
-        approach = IK_geometric_event_1(self.rxarm.dh_params, approachFrame,theta)     
+        approach = IK_geometric_event_1(self.rxarm.dh_params, approachFrame,theta) 
+        # print(get_pose_from_T(FK_dh(self.rxarm.dh_params, approach, 5)))
+        # print('')
         pickup = IK_geometric_event_1(self.rxarm.dh_params, pickupFrame,theta)        
-        
+        # print(get_pose_from_T(FK_dh(self.rxarm.dh_params, pickup, 5)))
+        # print('')
         self.waypoints.append(approach)
         self.waypoint_grip.append(0)
 
@@ -997,22 +1006,19 @@ class StateMachine():
         # self.waypoints = []
         # self.waypoint_grip = []
         approachFrame = placeFrame.copy()
-        approachFrame[2,-1] += 100
+        approachFrame[2,-1] += 50
         if bonus_:
             approachFrame[2,-1] = 100
         placeFrame[2,-1] += offset
 
-        #TODO: write IK function to accomplish the rest of this
-        approach = IK_geometric_event_1(self.rxarm.dh_params, approachFrame,0)     
-        drop = IK_geometric_event_1(self.rxarm.dh_params, placeFrame,0)   
-        drop[-1] = drop[0]
-        approach[-1] = approach[0]     
-        if drop[0] <= 0:
-            drop[-1] = drop[0] +  math.pi/2
-            approach[-1] = approach[0] + math.pi/2
-        else:   
-            drop[-1] = drop[0] - math.pi/2
-            approach[-1] = approach[0] - math.pi/2
+        #TODO: write IK function to accomplish the rest of this   
+        approach = IK_geometric_event_1(self.rxarm.dh_params, approachFrame,90)    
+        # print(get_pose_from_T(FK_dh(self.rxarm.dh_params, approach, 5)))
+        # print('')
+        drop = IK_geometric_event_1(self.rxarm.dh_params, placeFrame,90)
+        # print(get_pose_from_T(FK_dh(self.rxarm.dh_params, drop, 5)))
+        # print('')
+        
         self.waypoints.append(approach)
         self.waypoint_grip.append(1)
 
@@ -1041,6 +1047,25 @@ class StateMachine():
 
     def height_sort(self,blockData):
         return(blockData[0][2,-1])
+
+    def robot_home(self, wait = 2):
+        self.rxarm.set_positions([0, -np.pi/2, -np.pi/2, -np.pi/4, 0])          
+        self.rxarm.open_gripper()
+        rospy.sleep(wait)
+
+    def pre_process3(self):
+        smallblocks = []
+        bigblocks = []
+        for blockData in self.camera.blockData:
+            if blockData[5] == 'Small Block':
+                smallblocks.append(blockData)
+            elif blockData[5] == 'Big Block':
+                bigblocks.append(blockData)
+        
+        bigblocks.sort(key = self.color_sort, reverse = True) #VBGYOR 
+        smallblocks.sort(key = self.color_sort) #ROYGBV
+        self.camera.blockData = bigblocks+smallblocks
+
 #Testing color_sort
     def test(self):
         # print('wut')

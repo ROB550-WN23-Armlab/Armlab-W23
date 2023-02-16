@@ -104,19 +104,24 @@ def get_euler_angles_from_T(T):
     """
     R = T[0:3,0:3]  #Rotation Matrix
 
-    # try:
-    theta = math.atan2(math.sqrt(1-((R[2][2])**2)),R[2][2])
-    # print(R)
-    # print('\n')
-    # print(theta)
-    # print('\n')
-    if(math.sin(theta)>0):
-        phi = math.atan2(R[1][2],R[0][2])
-        psi = math.atan2(R[2][1],-R[2][0])
-    else:
-        phi = math.atan2(-R[1][2],-R[0][2])
-        psi = math.atan2(-R[2][1],R[2][0])
+    phi = math.atan2(R[1][2],R[0][2])
+    theta = math.atan2(math.sqrt(R[1][2]**2+R[0][2]**2),R[2][2])
+    psi = math.atan2(R[2][1],-R[2][0])
+
     return (phi,theta,psi)
+    # try:
+    # theta = math.atan2(math.sqrt(1-((R[2][2])**2)),R[2][2])
+    # # print(R)
+    # # print('\n')
+    # # print(theta)
+    # # print('\n')
+    # if(math.sin(theta)>0):
+    #     phi = math.atan2(R[1][2],R[0][2])
+    #     psi = math.atan2(R[2][1],-R[2][0])
+    # else:
+    #     phi = math.atan2(-R[1][2],-R[0][2])
+    #     psi = math.atan2(-R[2][1],R[2][0])
+    # return (phi,theta,psi)
     # except:
     #     print(R)
     #     print('\n')
@@ -516,7 +521,7 @@ def IK_geometric_event_1(dh_params, T,thetaBlock):
     l1 = dh_params[1][0] # 205.73
     l2 = dh_params[2][0] # 200
     d1 = dh_params[0][2] # 103.91
-    link6_len = dh_params[4][2]-5 # 174.15
+    link6_len = dh_params[4][2]# 174.15
    
     
     angle_offset = math.pi/2 - math.atan2(50,200)
@@ -531,7 +536,7 @@ def IK_geometric_event_1(dh_params, T,thetaBlock):
     direction = "down"
 
     if direction=="down":
-        print('down')
+        # print('down')
         pos_wrist = pos_ee + np.array([0,0,link6_len])
         R_0_5 = get_R_from_euler_angles(0.0,np.pi,0.0)
         ox = pos_wrist[0]
@@ -549,7 +554,7 @@ def IK_geometric_event_1(dh_params, T,thetaBlock):
             error
 
     if direction=="flat":
-        print('flat')
+        # print('flat')
         R_0_5 = get_R_from_euler_angles(math.atan2(pose[1],pose[0]),1.25*np.pi/2,0.0)
         pos_wrist = pos_ee - link6_len*np.matmul(R_0_5,np.array([0,0,1]))
 
@@ -607,20 +612,24 @@ def IK_geometric_event_1(dh_params, T,thetaBlock):
     q4_A1,q5_A1,q6_A1 = get_euler_angles_from_T(R_3_5_A1)
     
     # Checking q1,q2,q3,q4,q5
-    joint_angles_A1 = np.concatenate((q_1_2_3_A1, np.array([q4_A1,q5_A1,q6_A1])), axis=None)
+    # joint_angles_A1 = np.concatenate((q_1_2_3_A1, np.array([q4_A1,q5_A1,q6_A1])), axis=None)
     
-    T_A1 = FK_dh(dh_params, joint_angles_A1, 5)
+    # T_A1 = FK_dh(dh_params, joint_angles_A1, 5)
 
     if direction == "flat":
         q7 = 0
     else:
-        q7 = thetaBlock
-        #print(thetaBlock)
+        q7 = thetaBlock*math.pi/180+q1
+        # print("***Angle Decode***")
+        # print(thetaBlock)
+        # print(q7)
+        # print(q1)
+        # print("******************\n")
     return [q1,q2,q3,q4_A1,q7]
 
 
 
-def rotation_matrix(theta1, theta2, theta3, order='xyz'):
+def rotation_matrix(theta1, theta2, theta3, order='zyz'):
     """
     input
         theta1, theta2, theta3 = rotation angles in rotation order (degrees)
