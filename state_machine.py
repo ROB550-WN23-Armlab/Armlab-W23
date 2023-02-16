@@ -235,9 +235,11 @@ class StateMachine():
         #Calculate Joint Errors
         joint_errors = np.array(self.waypoints[self.current_waypoint]) - np.array(self.rxarm.get_positions())
         self.err = np.sqrt(np.mean(joint_errors**2))
+
+        self.rxarm.set_moving_time(1.7)
         #Waypoint checking and actuation
         if (self.err < self.thresh) or (self.current_waypoint == 0) or (self.long_time):
-            print(get_pose_from_T(FK_dh(self.rxarm.dh_params, self.waypoints[self.current_waypoint], 5)))            
+            # print(get_pose_from_T(FK_dh(self.rxarm.dh_params, self.waypoints[self.current_waypoint], 5)))            
             self.rxarm.set_positions(self.waypoints[self.current_waypoint])          
             self.actuate_gripper(self.waypoint_grip[self.current_waypoint])
             self.current_waypoint += 1
@@ -972,7 +974,7 @@ class StateMachine():
         # self.waypoint_grip = []
 
         approachFrame = pickupFrame.copy()
-        approachFrame[2,-1] += 50
+        approachFrame[2,-1] += 150
         if bonus_:
             approachFrame[2,-1] = 100        
         pickupFrame[2,-1] -= offset
@@ -1006,7 +1008,7 @@ class StateMachine():
         # self.waypoints = []
         # self.waypoint_grip = []
         approachFrame = placeFrame.copy()
-        approachFrame[2,-1] += 50
+        approachFrame[2,-1] += 150
         if bonus_:
             approachFrame[2,-1] = 100
         placeFrame[2,-1] += offset
@@ -1016,6 +1018,9 @@ class StateMachine():
         # print(get_pose_from_T(FK_dh(self.rxarm.dh_params, approach, 5)))
         # print('')
         drop = IK_geometric_event_1(self.rxarm.dh_params, placeFrame,90)
+        print("Block Angle Desired:")
+        print(drop[-1]-drop[0])
+        print("\n")
         # print(get_pose_from_T(FK_dh(self.rxarm.dh_params, drop, 5)))
         # print('')
         
@@ -1049,7 +1054,7 @@ class StateMachine():
         return(blockData[0][2,-1])
 
     def robot_home(self, wait = 2):
-        self.rxarm.set_positions([0, -np.pi/2, -np.pi/2, -np.pi/4, 0])          
+        self.rxarm.set_positions([0, -np.pi/2+np.pi/12, -np.pi/2, np.pi/2, 0])          
         self.rxarm.open_gripper()
         rospy.sleep(wait)
 

@@ -513,88 +513,96 @@ def IK_geometric_event_1(dh_params, T,thetaBlock):
     @return     All four possible joint configurations in a numpy array 4x4 where each row is one possible joint
                 configuration
     """
-    pose = get_pose_from_T(T)
-    # phi = pose[3]
-    # theta = pose[4]
-    # psi = pose[5]
-    # Defining co
-    l1 = dh_params[1][0] # 205.73
-    l2 = dh_params[2][0] # 200
-    d1 = dh_params[0][2] # 103.91
-    link6_len = dh_params[4][2]# 174.15
-   
+    multi = 2
+    Flag = 1
+    while Flag:
+        pose = get_pose_from_T(T)
+        # phi = pose[3]
+        # theta = pose[4]
+        # psi = pose[5]
+        # Defining co
+        l1 = dh_params[1][0] # 205.73
+        l2 = dh_params[2][0] # 200
+        d1 = dh_params[0][2] # 103.91
+        link6_len = dh_params[4][2]# 174.15
     
-    angle_offset = math.pi/2 - math.atan2(50,200)
+        
+        angle_offset = math.pi/2 - math.atan2(50,200)
 
-    # End Effector Location
-    pos_ee = np.array([pose[0],pose[1],pose[2]])
-    x = pos_ee[0]
-    y = pos_ee[1]
-    z = pos_ee[2]
+        # End Effector Location
+        pos_ee = np.array([pose[0],pose[1],pose[2]])
+        x = pos_ee[0]
+        y = pos_ee[1]
+        z = pos_ee[2]
 
 
-    direction = "down"
+        direction = "down"
 
-    if direction=="down":
-        # print('down')
-        pos_wrist = pos_ee + np.array([0,0,link6_len])
-        R_0_5 = get_R_from_euler_angles(0.0,np.pi,0.0)
+        if direction=="down":
+            # print('down')
+            pos_wrist = pos_ee + np.array([0,0,link6_len])
+            R_0_5 = get_R_from_euler_angles(0.0,np.pi,0.0)
+            ox = pos_wrist[0]
+            oy = pos_wrist[1]
+            oz = pos_wrist[2]
+            planar_x = math.sqrt(ox*ox + oy*oy)
+            # print('')
+            # print(planar_x)
+            if planar_x <= 340:
+                direction = "down"
+            elif  planar_x <=600:
+                direction = "flat"
+            else:
+                print("OUTSIDE OF WORKSPACE!!!!!")
+                error
+
+        if direction=="flat":
+            # print('flat')
+            R_0_5 = get_R_from_euler_angles(math.atan2(pose[1],pose[0]),multi*np.pi/2,0.0)
+            pos_wrist = pos_ee - link6_len*np.matmul(R_0_5,np.array([0,0,1]))
+
+        # Wrist location
         ox = pos_wrist[0]
         oy = pos_wrist[1]
         oz = pos_wrist[2]
+
         planar_x = math.sqrt(ox*ox + oy*oy)
+        planar_y = oz - d1
+
+
+        # Q1 - Calculation 
+        q1 = math.atan2(oy,ox) - np.pi/2.0
+        if q1 < -np.pi:
+            q1 = q1 + 2*np.pi
+
+        # Q3 - Calculation
+        c3 = ((planar_x**2 + planar_y**2) - l1**2 -l2**2)/(2*l1*l2)
+        # print(c3)
         # print('')
-        # print(planar_x)
-        if planar_x <= 340:
-            direction = "down"
-        elif  planar_x <=600:
-            direction = "flat"
+        if np.absolute(c3) > 1:
+            print('Postion Unreachable')
+        elif c3 ==1.0:
+            theta_2 = math.atan2(oy,ox)
+            theta_3 = 0.0
+            theta_3_alt = 0.0
+        elif c3 ==-1.0 and (planar_x**2 + planar_y**2) != 0.0:
+            theta_2 = math.atan2(oy,ox)
+            theta_3 = math.pi
+            theta_3_alt = -math.pi
+        elif c3 ==-1.0 and (planar_x**2 + planar_y**2) == 0.0:
+            theta_2 = 0.0 # picking zero, as it has infinite solutions
+            theta_3 = math.pi
+            theta_3_alt = -math.pi
+            print('Infinite solutions')
         else:
-            print("OUTSIDE OF WORKSPACE!!!!!")
-            error
-
-    if direction=="flat":
-        # print('flat')
-        R_0_5 = get_R_from_euler_angles(math.atan2(pose[1],pose[0]),1.25*np.pi/2,0.0)
-        pos_wrist = pos_ee - link6_len*np.matmul(R_0_5,np.array([0,0,1]))
-
-    # Wrist location
-    ox = pos_wrist[0]
-    oy = pos_wrist[1]
-    oz = pos_wrist[2]
-
-    planar_x = math.sqrt(ox*ox + oy*oy)
-    planar_y = oz - d1
+            theta_3 = math.acos(c3)
+        try:
+            theta_3 = -theta_3    # Choosing Elbow Up 
+            Flag = 0
+        except:
+            multi -=0.1
 
 
-    # Q1 - Calculation 
-    q1 = math.atan2(oy,ox) - np.pi/2.0
-    if q1 < -np.pi:
-        q1 = q1 + 2*np.pi
-
-    # Q3 - Calculation
-    c3 = ((planar_x**2 + planar_y**2) - l1**2 -l2**2)/(2*l1*l2)
-    # print(c3)
-    # print('')
-    if np.absolute(c3) > 1:
-        print('Postion Unreachable')
-    elif c3 ==1.0:
-        theta_2 = math.atan2(oy,ox)
-        theta_3 = 0.0
-        theta_3_alt = 0.0
-    elif c3 ==-1.0 and (planar_x**2 + planar_y**2) != 0.0:
-        theta_2 = math.atan2(oy,ox)
-        theta_3 = math.pi
-        theta_3_alt = -math.pi
-    elif c3 ==-1.0 and (planar_x**2 + planar_y**2) == 0.0:
-        theta_2 = 0.0 # picking zero, as it has infinite solutions
-        theta_3 = math.pi
-        theta_3_alt = -math.pi
-        print('Infinite solutions')
-    else:
-        theta_3 = math.acos(c3)
-
-    theta_3 = -theta_3    # Choosing Elbow Up 
     q3 = theta_3 + angle_offset
 
     # Q2 - Calculation
