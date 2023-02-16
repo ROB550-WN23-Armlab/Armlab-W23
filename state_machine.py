@@ -674,22 +674,23 @@ class StateMachine():
             # print(theta)
             # print('')
 
+            self.thisBlock = [x,y,block_type]
             #Move small blocks to negative block area
             if y>=0 and block_type == 'Small Block':
                 self.pick_up_block(block_Frame,theta,0)
-                self.place_block(self.smallBlockPlace1,"down",0)
+                self.place_block(self.smallBlockPlace1,"down",3)
                 self.smallBlockPlace1[0,-1] -= 50
                 moves += 1
             #Move big blocks to positive block araea
             elif y>=0 and block_type == 'Big Block':
-                self.pick_up_block(block_Frame,theta, 10)
+                self.pick_up_block(block_Frame,theta, 15)
                 if self.bigBlockPlace1[0,-1] < 350 :
                     self.bigBlockPlace1[0,-1] += 50
                 else:
                     self.bigBlockPlace1[1,-1] += 70
                     self.bigBlockPlace1[0,-1] = 50*-2.5
 
-                self.place_block(self.bigBlockPlace1,"down",20)
+                self.place_block(self.bigBlockPlace1,"down",25)
                 moves +=1
         #Done if robot determined that there was nothin to move
         if moves == 0:
@@ -717,7 +718,7 @@ class StateMachine():
             self.bigBlockPlace2 = self.smallBlockPlace2.copy()
             self.smallBlockPlace2[:,-1] = 50*np.array([-4, -2.5, 0, 1/50])
             self.bigBlockPlace2[:,-1] = 50*np.array([4, -2.5, 0, 1/50])
-            self.init1 = False
+            self.init2 = False
 
         self.rxarm.sleep() 
         rospy.sleep(3)
@@ -732,14 +733,14 @@ class StateMachine():
             y = block_Frame[1,3]
             block_type = block[5]
 
-            print(block_Frame[:,-1])
-            print(block_type)
-            print(theta)
-            print('')
-
+            # print(block_Frame[:,-1])
+            # print(block_type)
+            # print(theta)
+            # print('')
+            self.thisBlock = [x,y,block_type]
             #Move small blocks to negative block area
             if y>=0 and block_type == 'Small Block':
-                self.pick_up_block(block_Frame,theta,5)
+                self.pick_up_block(block_Frame,theta,4)
                 self.place_block(self.smallBlockPlace2,"down",10)
                 if self.smallStackCt2 < 2:
                     self.smallBlockPlace2[2, -1] += 23
@@ -752,7 +753,7 @@ class StateMachine():
                 moves += 1
             #Move big blocks to positive block araea
             elif y>=0 and block_type == 'Big Block':
-                self.pick_up_block(block_Frame,theta, 10)
+                self.pick_up_block(block_Frame,theta, 8)
                 self.place_block(self.bigBlockPlace2,"down",25)
                 if self.bigStackCt2 < 2:
                     self.bigBlockPlace2[2, -1] += 33
@@ -816,6 +817,7 @@ class StateMachine():
             print(theta)
             print(color)
             print('')
+            self.thisBlock = [x,y,block_type]
 
             #Move small blocks to appropriate color position
             if y>=0 and block_type == 'Small Block':
@@ -890,6 +892,7 @@ class StateMachine():
                 print(block_type)
                 print(theta)
                 print('')
+                self.thisBlock = [x,y,block_type]
 
                 #Move small blocks to negative block area
                 if y<=0 and block_type == 'Small Block':
@@ -977,12 +980,13 @@ class StateMachine():
         approachFrame[2,-1] += 150
         if bonus_:
             approachFrame[2,-1] = 100        
-        pickupFrame[2,-1] -= offset
+        pickupFrame[2,-1] += offset
 
         #TODO: write IK function to accomplish the rest of this
         approach = IK_geometric_event_1(self.rxarm.dh_params, approachFrame,theta) 
         # print(get_pose_from_T(FK_dh(self.rxarm.dh_params, approach, 5)))
         # print('')
+        print(self.thisBlock)
         pickup = IK_geometric_event_1(self.rxarm.dh_params, pickupFrame,theta)        
         # print(get_pose_from_T(FK_dh(self.rxarm.dh_params, pickup, 5)))
         # print('')
@@ -1018,9 +1022,10 @@ class StateMachine():
         # print(get_pose_from_T(FK_dh(self.rxarm.dh_params, approach, 5)))
         # print('')
         drop = IK_geometric_event_1(self.rxarm.dh_params, placeFrame,90)
-        print("Block Angle Desired:")
-        print(drop[-1]-drop[0])
-        print("\n")
+        # print("Block Angle Desired:")
+        # print(drop[-1]-drop[0])
+        # print("\n")
+
         # print(get_pose_from_T(FK_dh(self.rxarm.dh_params, drop, 5)))
         # print('')
         

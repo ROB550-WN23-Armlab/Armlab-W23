@@ -456,7 +456,7 @@ class Camera():
                 pass
         #print(self.blockData)
         contour_frame = cv2.cvtColor(contour_frame, cv2.COLOR_RGB2BGR)
-        cv2.imwrite("block_labels.png",contour_frame)                
+        #cv2.imwrite("block_labels.png",contour_frame)                
                 
     def detectBlocksInDepthImage(self):
         """!

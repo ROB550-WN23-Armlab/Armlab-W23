@@ -420,7 +420,7 @@ def IK_geometric_two(dh_params, pose, direction):
     c3 = ((planar_x**2 + planar_y**2) - l1**2 -l2**2)/(2*l1*l2)
     
     if np.absolute(c3) > 1:
-        print('Postion Unreachable')
+        print('Position Unreachable')
     elif c3 ==1:
         theta_2 = math.atan2(oy,ox)
         theta_3 = 0
@@ -525,6 +525,11 @@ def IK_geometric_event_1(dh_params, T,thetaBlock):
         l2 = dh_params[2][0] # 200
         d1 = dh_params[0][2] # 103.91
         link6_len = dh_params[4][2]# 174.15
+
+        # l1 = 205.73 # 205.73
+        # l2 = 200 # 200
+        # d1 = 104 # 103.91
+        # link6_len = 154.15# 174.15
     
         
         angle_offset = math.pi/2 - math.atan2(50,200)
@@ -579,8 +584,8 @@ def IK_geometric_event_1(dh_params, T,thetaBlock):
         c3 = ((planar_x**2 + planar_y**2) - l1**2 -l2**2)/(2*l1*l2)
         # print(c3)
         # print('')
-        if np.absolute(c3) > 1:
-            print('Postion Unreachable')
+        if np.absolute(c3) > 1.0:
+            print('Position Unreachable')
         elif c3 ==1.0:
             theta_2 = math.atan2(oy,ox)
             theta_3 = 0.0
@@ -601,6 +606,9 @@ def IK_geometric_event_1(dh_params, T,thetaBlock):
             Flag = 0
         except:
             multi -=0.1
+            if multi < 0:
+                print("Give up")
+                break
 
 
     q3 = theta_3 + angle_offset
