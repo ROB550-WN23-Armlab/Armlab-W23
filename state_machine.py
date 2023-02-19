@@ -9,6 +9,7 @@ import cv2
 import math
 import sys
 import os
+import matplotlib.pyplot as plt
 from kinematics import IK_geometric_two, IK_geometric_event_1, get_R_from_euler_angles, FK_dh, get_pose_from_T
 
 class StateMachine():
@@ -48,7 +49,6 @@ class StateMachine():
         self.err = 0
         self.thresh = 0.025
         self.long_time = 0
-        self.record = 0
         self.pts_obtained = 0
 
         #Slow Calibration stuff
@@ -107,7 +107,46 @@ class StateMachine():
                             'blue': 5.5, 
                             'violet': 6.5}            
 
-        self.Three2Four = False              
+        self.event4small =  {'red': -5, 
+                            'orange': -4.5,
+                            'yellow': -4, 
+                            'green': -3.5, 
+                            'blue': -3, 
+                            'violet': -2.5}
+
+        self.event4bigX =    {'red': 2.5, 
+                            'orange': 3,
+                            'yellow': 3.5, 
+                            'green': 4, 
+                            'blue': 4.5, 
+                            'violet': 5}         
+
+        self.event4smallX =  {'red': -5, 
+                            'orange': -4.5,
+                            'yellow': -4, 
+                            'green': -3.5, 
+                            'blue': -3, 
+                            'violet': -2.5}
+
+        self.event4smallY = {'red': -2.5, 
+                            'orange': -0.5,
+                            'yellow': -2.5, 
+                            'green': -0.5, 
+                            'blue': -2.5, 
+                            'violet': -0.5}
+
+        self.event4bigY = {'red': -2.5, 
+                            'orange': -0.5,
+                            'yellow': -2.5, 
+                            'green': -0.5, 
+                            'blue': -2.5, 
+                            'violet': -0.5}
+
+        self.Three2Four = False    
+
+        self.isGrabbingInFront = True      
+
+        self.sizeTower = 1.0
 
     def set_next_state(self, state):
         """!
@@ -146,6 +185,7 @@ class StateMachine():
             self.calibrate()
 
         if self.next_state == "detect":
+            self.robot_home()            
             self.detect()
 
         if self.next_state == "manual":
@@ -160,8 +200,8 @@ class StateMachine():
         if self.next_state == "clear_waypoints":
             self.clear_waypoints()
 
-        if self.next_state == "save_waypoints":
-            self.save_waypoints()
+        if self.next_state == "save_trajectory":
+            self.save_trajectory()
 
         if self.next_state == "save_image":
             self.save_image()
@@ -186,9 +226,15 @@ class StateMachine():
 
         if self.next_state == "event4":
             self.event4()            
-
+    
+        if self.next_state == "bonus":
+            self.bonusRob()
+    
         if self.next_state == "test":
             self.test()
+
+        if self.next_state == "plot":
+            self.plot()
     """Functions run for each state"""
 
     def manual(self):
@@ -231,6 +277,7 @@ class StateMachine():
         if self.current_waypoint == 0:
             self.now = time.time()
             self.start_exe = time.time()
+            self.zTime = time.time()
 
         #Calculate Joint Errors
         joint_errors = np.array(self.waypoints[self.current_waypoint]) - np.array(self.rxarm.get_positions())
@@ -240,24 +287,15 @@ class StateMachine():
         #Waypoint checking and actuation
         if (self.err < self.thresh) or (self.current_waypoint == 0) or (self.long_time):
             # print(get_pose_from_T(FK_dh(self.rxarm.dh_params, self.waypoints[self.current_waypoint], 5)))            
-            self.rxarm.set_positions(self.waypoints[self.current_waypoint])          
-            self.actuate_gripper(self.waypoint_grip[self.current_waypoint])
-            self.current_waypoint += 1
+            self.rxarm.set_positions(self.waypoints[self.current_waypoint])
+            self.rxarm.set_gripper_pressure(self.waypoint_grip[self.current_waypoint])
+            self.actuate_gripper((self.waypoint_grip[self.current_waypoint]>0))
             self.zTime = time.time()
+            self.current_waypoint += 1
             self.long_time = 0
         else:
             if (time.time() - self.zTime >self.rxarm.moving_time):
                 self.long_time = 1
-
-        #Record data
-        if self.record:
-            if (time.time()-self.now >=0.2):
-                self.now = time.time()
-                file1 = open("Data.txt","a")
-                file1.write(str(self.now - self.start_exe) + ", " + str(self.waypoints[self.current_waypoint]) )
-                file1.write('\n')
-                file1.close()
-
 
         #Check if all waypoints have been passed through
         if self.current_waypoint == len(self.waypoints):
@@ -428,16 +466,30 @@ class StateMachine():
         self.err = 0
         self.next_state = "idle"
 
-    def save_waypoints(self):
+    def save_trajectory(self):
         """!
         @brief      Export set of waypoints currently in memory to a .txt file
         """        
         self.current_state = "save_waypoints"
         self.status_message = "Saving waypoints"
-        file1 = open("WP.txt","a")
-        file1.write(str(self.waypoints))
+        #Record data
+        x = []
+        y = []
+        z = []
+        file1 = open("Data.txt","a")
+        
+        file1.write('New Data')
         file1.write('\n')
-        file1.write(str(self.waypoint_grip))
+        file1.write('\n')
+        
+        for wp in self.waypoints:
+            pos = get_pose_from_T(FK_dh(self.rxarm.dh_params, wp, 5))
+            x = pos[0]
+            y = pos[1]
+            z = pos[2]        
+            print(str(x) + ', ' + str(y) + ', ' + str(z))            
+            file1.write(str(x) + ', ' + str(y) + ', ' + str(z))
+            file1.write('\n')
         file1.close()
         self.next_state = "idle"
         
@@ -650,7 +702,7 @@ class StateMachine():
             self.smallBlockPlace1 = np.zeros((4,4))
             self.smallBlockPlace1[0:3,0:3] = get_R_from_euler_angles(0.0,np.pi,0.0)
             self.bigBlockPlace1 = self.smallBlockPlace1.copy()
-            self.smallBlockPlace1[:,-1] = 50*np.array([-2.5, -2.5, 0, 1/50])
+            self.smallBlockPlace1[:,-1] = 50*np.array([-2.5, -2.5, 0.25, 1/50])
             self.bigBlockPlace1[:,-1] = 50*np.array([2.5, -2.5, 0, 1/50])
             self.init1 = False
 
@@ -677,7 +729,7 @@ class StateMachine():
             self.thisBlock = [x,y,block_type]
             #Move small blocks to negative block area
             if y>=0 and block_type == 'Small Block':
-                self.pick_up_block(block_Frame,theta,0)
+                self.pick_up_block(block_Frame,theta,12)
                 self.place_block(self.smallBlockPlace1,"down",3)
                 self.smallBlockPlace1[0,-1] -= 50
                 moves += 1
@@ -688,7 +740,7 @@ class StateMachine():
                     self.bigBlockPlace1[0,-1] += 50
                 else:
                     self.bigBlockPlace1[1,-1] += 70
-                    self.bigBlockPlace1[0,-1] = 50*-2.5
+                    self.bigBlockPlace1[0,-1] = 50*2.5
 
                 self.place_block(self.bigBlockPlace1,"down",25)
                 moves +=1
@@ -716,12 +768,12 @@ class StateMachine():
             self.smallBlockPlace2 = np.zeros((4,4))
             self.smallBlockPlace2[0:3,0:3] = get_R_from_euler_angles(0.0,np.pi,0.0)
             self.bigBlockPlace2 = self.smallBlockPlace2.copy()
-            self.smallBlockPlace2[:,-1] = 50*np.array([-4, -2.5, 0, 1/50])
+            self.smallBlockPlace2[:,-1] = 50*np.array([-4, -2.5, 0.25, 1/50])
             self.bigBlockPlace2[:,-1] = 50*np.array([4, -2.5, 0, 1/50])
             self.init2 = False
 
-        self.rxarm.sleep() 
-        rospy.sleep(3)
+        self.robot_home() 
+        # rospy.sleep(3)
         #Ensure that block detection only happens once arm is fully slept
         self.detect_blocks_once()
         
@@ -740,8 +792,8 @@ class StateMachine():
             self.thisBlock = [x,y,block_type]
             #Move small blocks to negative block area
             if y>=0 and block_type == 'Small Block':
-                self.pick_up_block(block_Frame,theta,4)
-                self.place_block(self.smallBlockPlace2,"down",10)
+                self.pick_up_block(block_Frame,theta,17)
+                self.place_block(self.smallBlockPlace2,"down",3)
                 if self.smallStackCt2 < 2:
                     self.smallBlockPlace2[2, -1] += 23
                 else:
@@ -753,10 +805,10 @@ class StateMachine():
                 moves += 1
             #Move big blocks to positive block araea
             elif y>=0 and block_type == 'Big Block':
-                self.pick_up_block(block_Frame,theta, 8)
+                self.pick_up_block(block_Frame,theta, 15)
                 self.place_block(self.bigBlockPlace2,"down",25)
                 if self.bigStackCt2 < 2:
-                    self.bigBlockPlace2[2, -1] += 33
+                    self.bigBlockPlace2[2, -1] += 25
                 else:
                     self.bigBlockPlace2[2, -1] = 0
                     self.bigBlockPlace2[0,-1] += 75
@@ -789,11 +841,11 @@ class StateMachine():
             self.smallBlockPlace3 = np.zeros((4,4))
             self.smallBlockPlace3[0:3,0:3] = get_R_from_euler_angles(0.0,np.pi,0.0)
             self.bigBlockPlace3 = self.smallBlockPlace3.copy()
-            self.smallBlockPlace3[:,-1] = 50*np.array([0, -2.5, 0, 1/50])
-            self.bigBlockPlace3[:,-1] = 50*np.array([0, -2.5, 0, 1/50])
+            self.smallBlockPlace3[:,-1] = 50*np.array([-1.25, -2.5, 0.25, 1/50])
+            self.bigBlockPlace3[:,-1] = 50*np.array([1.25, -2.5, 0, 1/50])
             self.init3 = False
 
-        self.rxarm.sleep() 
+        self.robot_home() 
         rospy.sleep(3)
         #Ensure that block detection only happens once arm is fully slept
         self.detect_blocks_once()
@@ -810,6 +862,8 @@ class StateMachine():
             y = block_Frame[1,3]
             block_type = block[5]
             color = block[1]
+            print('EVENT3 STUFF')
+
 
             print(x)
             print(y)
@@ -818,22 +872,32 @@ class StateMachine():
             print(color)
             print('')
             self.thisBlock = [x,y,block_type]
-
-            #Move small blocks to appropriate color position
-            if y>=0 and block_type == 'Small Block':
-                self.pick_up_block(block_Frame,theta,5)
-                place_color = self.smallBlockPlace3.copy()
-                place_color[0,-1] = 50*self.event3small[color]
-                print(50*self.event3small[color])
-                self.place_block(place_color,"down",0)
-                moves += 1
-            #Move big blocks to positive block araea
-            elif y>=0 and block_type == 'Big Block':
-                self.pick_up_block(block_Frame,theta, 10)
-                place_color = self.bigBlockPlace3.copy()
-                place_color[0,-1] = 50*self.event3big[color]            
-                self.place_block(place_color,"down",33)
-                moves +=1
+            try:
+                #Move small blocks to appropriate color position
+                if y>=0 and block_type == 'Small Block':
+                    self.pick_up_block(block_Frame,theta,17)
+                    place_color = self.smallBlockPlace3.copy()
+                    if self.Three2Four:
+                        place_color[0,-1] = 50*self.event4smallX[color]
+                        place_color[1,-1] = 50*self.event4smallY[color]
+                    else:
+                        place_color[0,-1] = 50*self.event3small[color]
+                    #print(50*self.event3small[color])
+                    self.place_block(place_color,"down",3)
+                    moves += 1
+                #Move big blocks to positive block araea
+                elif y>=0 and block_type == 'Big Block':
+                    self.pick_up_block(block_Frame,theta, 15)
+                    place_color = self.bigBlockPlace3.copy()
+                    if self.Three2Four:
+                        place_color[0,-1] = 50*self.event4bigX[color]
+                        place_color[1,-1] = 50*self.event4bigY[color]
+                    else:
+                        place_color[0,-1] = 50*self.event3big[color]                    
+                    self.place_block(place_color,"down",25)
+                    moves +=1
+            except:
+                print("SKIP THIS BLOCK")
         #Done if robot determined that there was nothin to move
         if moves == 0:
             #If called from event4(), return to event4()
@@ -845,13 +909,12 @@ class StateMachine():
         else:
             self.next_state = 'executeAndReturn'            
 
-#Can maybe run event 3 first and then stack with event 4
     def event4(self):
         """!
         @brief      Stack up in ROYGBV order, separate lines for small and large blocks
         """
-        self.status_message = "Running Event 3"
-        self.current_state = "event3"
+        self.status_message = "Running Event 4"
+        self.current_state = "event4"
 
         #This code framework does not currently account for small blocks hidden under large blocks, this can maybe be accounted for by separating blockredetection
         #from normal block detection and checking if there is a significant difference in the countour width and height
@@ -869,10 +932,11 @@ class StateMachine():
             self.init4 = False
 
             self.Three2Four = True
-            self.next_state = 'event3'
+            self.next_state = "event3"
+            print('Go to event3')
 
         else:
-            self.rxarm.sleep() 
+            self.robot_home() 
             rospy.sleep(3)
             #Ensure that block detection only happens once arm is fully slept
             self.detect_blocks_once()
@@ -884,6 +948,9 @@ class StateMachine():
             for block in self.camera.blockData:
                 block_Frame = block[0]
                 theta = block[2]
+                if theta <80:
+                    theta += 90
+
                 x = block_Frame[0,3]
                 y = block_Frame[1,3]
                 block_type = block[5]
@@ -895,25 +962,28 @@ class StateMachine():
                 self.thisBlock = [x,y,block_type]
 
                 #Move small blocks to negative block area
-                if y<=0 and block_type == 'Small Block':
+                if y<=1 and block_type == 'Small Block':
                     self.pick_up_block(block_Frame,theta,5)
-                    self.place_block(self.smallBlockPlace4,"down",0)
-                    self.smallBlockPlace4[2, -1] += 35
+                    self.place_block(self.smallBlockPlace4,"down",3)
+                    self.smallBlockPlace4[2, -1] += 25
                     moves += 1
                 #Move big blocks to positive block araea
-                elif y<=0 and block_type == 'Big Block':
+                elif y<=1 and block_type == 'Big Block':
                     self.pick_up_block(block_Frame,theta, 10)
-                    self.place_block(self.bigBlockPlace4,"down",33)
-                    self.bigBlockPlace4[2, -1] += 25
+                    self.place_block(self.bigBlockPlace4,"down",25)
+                    self.bigBlockPlace4[2, -1] += 35
 
                     moves +=1
             #Done if robot determined that there was nothin to move
             if moves == 0:
                 self.next_state = 'idle'
             else:
-                self.next_state = 'executeAndReturn'         
+                self.next_state = 'executeAndReturn'   
+
+
     
     def bonus(self):
+        print("STARTING BONUS")
         self.current_state = 'bonus'
 
         'Click on GUI to exit bonus'
@@ -953,10 +1023,103 @@ class StateMachine():
             self.rxarm.sleep()
             rospy.sleep(2)
         else:
-            # remain_ t = dur - (time.time() - self.now_b)
+            remain_t = dur - (time.time() - self.now_b)
             self.status_message =  "Time left to place new block: %0.2f "%remain_t
+    
+    def bonusRob(self):
+
+        print("STARTING BONUS")
+        self.rxarm.moving_time = 0.5
+        self.rxarm.accel_time = 0.2
+        self.current_state = 'bonus'
+        self.waypoints = []
+        self.waypoint_grip = []
+        extraWrist = 5 # + self.sizeTower**2/20 #Keeps arm stable with heavier loads
+        extraShoulder = 0#self.sizeTower/10
+        one =   [-43, 35.6, -44.9, 80.6, 0.0]
+
+        two =   [-43, 21.3-extraShoulder, -50, 69.2+extraWrist, 0.0]
+
+        three = [-43, 26.5-extraShoulder, -34.8, 61.3+extraWrist, 0.0]
+
+        laying =  [-43, 27.85, -34.6, 62.5+extraWrist, 0.0]
+
+        four =  [-43, 38.7, -32.1, 70.7+extraWrist, 0.0]
+
+        print(self.isGrabbingInFront)
+
+        for i,v in enumerate(one):
+            one[i] *= math.pi/180
+            two[i] *= math.pi/180
+            three[i] *= math.pi/180
+            four[i] *= math.pi/180
+            laying[i] *=math.pi/180
+
+
+        time.sleep(0.5)
+        (x * 2 for x in [2, 2])
+        # 'Click on GUI to exit bonus'
+        if self.isGrabbingInFront:
+            if self.sizeTower == 1:
+                self.waypoints.append(one)
+                self.waypoint_grip.append(0)
+
+                self.waypoints.append(one)
+                self.waypoint_grip.append(1)
+
+            self.waypoints.append(two)
+            self.waypoint_grip.append(1)
+
+            self.waypoints.append(three)
+            self.waypoint_grip.append(1)
+
+            self.waypoints.append(laying)
+            self.waypoint_grip.append(1)
+
+            self.waypoints.append(laying)
+            self.waypoint_grip.append(0.05)
+
+            self.waypoints.append(four)
+            self.waypoint_grip.append(0.05)
+
+            self.waypoints.append(four)
+            self.waypoint_grip.append(0)
+
+            self.waypoints.append(four)
+            self.waypoint_grip.append(1)
+
+            self.waypoints.append(one)
+            self.waypoint_grip.append(1)
+
             
+        self.sizeTower += 1
+        self.current_waypoint = 0
+        self.next_state = "executeAndReturn"
         
+
+#Doesn't work since we can't install mpl_toolkits
+    def plot(self):
+        self.current_state = "plot"
+        self.next_state = "idle"
+        x = []
+        y = []
+        z = []
+        for wp in self.waypoints:
+            pos = get_pose_from_T(FK_dh(self.rxarm.dh_params, wp, 5))
+            print(pos[0:3])
+            x += pos[0]
+            y += pos[1]
+            z += pos[2]
+            
+        fig = plt.figure()
+        ax = plt.axes(projection = '3d')
+        ax.plot3D(x, y, z)
+        ax.xlabel("x [mm]")
+        ax.ylabel("y [mm]")
+        ax.zlabel("z [mm]")
+        ax.title('Teach and Repeat EE Trajectory')
+
+        plt.show()                
 #--------------------------Helper Functions-------------------------------------------------#
     def actuate_gripper(self,grip_state):
         #Actuate Grippers
@@ -980,7 +1143,8 @@ class StateMachine():
         approachFrame[2,-1] += 150
         if bonus_:
             approachFrame[2,-1] = 100        
-        pickupFrame[2,-1] += offset
+        radius = np.linalg.norm(pickupFrame[0:1,-1]) # Stopgap solution- this increases the offset as the block is farther away to correct for gravity
+        pickupFrame[2,-1] += radius/20
 
         #TODO: write IK function to accomplish the rest of this
         approach = IK_geometric_event_1(self.rxarm.dh_params, approachFrame,theta) 

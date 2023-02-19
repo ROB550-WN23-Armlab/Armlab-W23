@@ -96,26 +96,26 @@ class Gui(QMainWindow):
         # self.ui.btnUser2.clicked.connect(lambda: self.rxarm.open_gripper())
         # self.ui.btnUser3.setText('Close Gripper')
         # self.ui.btnUser3.clicked.connect(lambda: self.rxarm.close_gripper())
-        # self.ui.btnUser4.setText('Execute')
-        # self.ui.btnUser4.clicked.connect(partial(nxt_if_arm_init, 'execute'))        
+        self.ui.btnUser4.setText('Execute')
+        self.ui.btnUser4.clicked.connect(partial(nxt_if_arm_init, 'execute'))        
         
-        # self.ui.btnUser5.setText('Add Waypoint Closed Gripper')
-        # self.ui.btnUser5.clicked.connect(partial(nxt_if_arm_init, 'save_waypoint_close'))
+        self.ui.btnUser5.setText('Add Waypoint Closed Gripper')
+        self.ui.btnUser5.clicked.connect(partial(nxt_if_arm_init, 'save_waypoint_close'))
 
-        # self.ui.btnUser6.setText('Add Waypoint Open Gripper')
-        # self.ui.btnUser6.clicked.connect(partial(nxt_if_arm_init, 'save_waypoint_open'))
+        self.ui.btnUser6.setText('Add Waypoint Open Gripper')
+        self.ui.btnUser6.clicked.connect(partial(nxt_if_arm_init, 'save_waypoint_open'))
 
-        # self.ui.btnUser7.setText('Clear All Waypoints')
-        # self.ui.btnUser7.clicked.connect(partial(nxt_if_arm_init, 'clear_waypoints'))
+        self.ui.btnUser7.setText('Clear All Waypoints')
+        self.ui.btnUser7.clicked.connect(partial(nxt_if_arm_init, 'clear_waypoints'))
 
-        # self.ui.btnUser8.setText('Save Waypoints')
-        # self.ui.btnUser8.clicked.connect(partial(nxt_if_arm_init, 'save_waypoints'))
+        self.ui.btnUser8.setText('Save Trajectory')
+        self.ui.btnUser8.clicked.connect(partial(nxt_if_arm_init, 'save_trajectory'))
         
         # self.ui.btnUser5.setText('Save Image')
         # self.ui.btnUser5.clicked.connect(partial(nxt_if_arm_init, 'save_image'))
 
-        self.ui.btnUser2.setText('Click and Place')
-        self.ui.btnUser2.clicked.connect(partial(nxt_if_arm_init, 'click_place'))
+        # self.ui.btnUser2.setText('Click and Place')
+        # self.ui.btnUser2.clicked.connect(partial(nxt_if_arm_init, 'click_place'))
 
         self.ui.btnUser3.setText('Zero Depth Frame')
         self.ui.btnUser3.clicked.connect(partial(nxt_if_arm_init, 'zero_depth'))
@@ -126,23 +126,23 @@ class Gui(QMainWindow):
         self.ui.btnUser4.setText('Detect Block')
         self.ui.btnUser4.clicked.connect(partial(nxt_if_arm_init, 'detect'))
 
-        self.ui.btnUser5.setText('Event 1')
-        self.ui.btnUser5.clicked.connect(partial(nxt_if_arm_init, 'event1'))
+        # self.ui.btnUser5.setText('Event 1')
+        # self.ui.btnUser5.clicked.connect(partial(nxt_if_arm_init, 'event1'))
 
-        self.ui.btnUser6.setText('Event 2')
-        self.ui.btnUser6.clicked.connect(partial(nxt_if_arm_init, 'event2'))
+        # self.ui.btnUser6.setText('Event 2')
+        # self.ui.btnUser6.clicked.connect(partial(nxt_if_arm_init, 'event2'))
 
-        self.ui.btnUser7.setText('Event 3')
-        self.ui.btnUser7.clicked.connect(partial(nxt_if_arm_init, 'event3'))
+        # self.ui.btnUser7.setText('Event 3')
+        # self.ui.btnUser7.clicked.connect(partial(nxt_if_arm_init, 'event3'))
 
-        self.ui.btnUser8.setText('Event 4')
-        self.ui.btnUser8.clicked.connect(partial(nxt_if_arm_init, 'event4'))        
+        # self.ui.btnUser8.setText('Event 4')
+        # self.ui.btnUser8.clicked.connect(partial(nxt_if_arm_init, 'event4'))        
 
-        self.ui.btnUser9.setText('Bonus ')
-        self.ui.btnUser9.clicked.connect(partial(nxt_if_arm_init, 'bonus'))       
+        # self.ui.btnUser9.setText('Bonus ')
+        # self.ui.btnUser9.clicked.connect(partial(nxt_if_arm_init, 'bonus'))       
 
-        self.ui.btnUser10.setText('Test Helper')
-        self.ui.btnUser10.clicked.connect(partial(nxt_if_arm_init, 'test'))       
+        # self.ui.btnUser10.setText('Test Helper')
+        # self.ui.btnUser10.clicked.connect(partial(nxt_if_arm_init, 'test'))       
 
         # Sliders
         for sldr in self.joint_sliders:

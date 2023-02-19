@@ -194,12 +194,12 @@ class Camera():
         """
         #self.DepthFrameHSV[..., 0] = 6*self.redetect_thresh.astype(np.uint16) >> 1
         #self.DepthFrameHSV[..., 0] = 6*self.redetect_mask.astype(np.uint16) >> 1
-        self.DepthFrameHSV[..., 0] = 6*self.thresh.astype(np.uint16) >> 1
-        #self.DepthFrameHSV[..., 0] = 6*self.DepthFrameProcessed.astype(np.uint16) >> 1
+        #self.DepthFrameHSV[..., 0] = 6*self.thresh.astype(np.uint16) >> 1
+        self.DepthFrameHSV[..., 0] = 6*self.DepthFrameProcessed.astype(np.uint16) >> 1
         self.DepthFrameHSV[..., 1] = 0xFF
         self.DepthFrameHSV[..., 2] = 0x9F
         self.DepthFrameRGB = cv2.cvtColor(self.DepthFrameHSV,
-                                          cv2.COLOR_HSV2RGB)
+                                          cv2.COLOR_HSV2RGB)        
 
     def loadVideoFrame(self):
         """!
@@ -241,7 +241,8 @@ class Camera():
             frame = cv2.resize(self.GridFrame, (1280, 720))
 
             if self.homography is not None:
-                #frame = cv2.warpPerspective(frame, self.homography,(frame.shape[1], frame.shape[0]))
+                frame = cv2.warpPerspective(frame, self.homography,(frame.shape[1], frame.shape[0]))
+                # cv2.imwrite("gridPt_projection.png", frame)
                 #print('homographacation')      
                 pass
 
@@ -435,8 +436,8 @@ class Camera():
                 cx = int(M['m10']/M['m00'])
                 cy = int(M['m01']/M['m00'])
                 blockFrame = self.PxFrame2WorldFrame([cx,cy],theta)
-                #cv2.putText(contour_frame, contour_color, (cx-20, cy+40), font, 0.75,font_color , thickness=2)
-                cv2.putText(contour_frame, str(int(theta)), (cx-20, cy), font, 0.5, font_color, thickness=2)
+                cv2.putText(contour_frame, contour_color, (cx-20, cy+40), font, 0.75,font_color , thickness=2)
+                #cv2.putText(contour_frame, str(int(theta)), (cx-20, cy), font, 0.5, font_color, thickness=2)
                 cv2.putText(contour_frame, block_type, (cx-40, cy-50), font, 0.5, font_color, thickness=2)
                 #cv2.putText(contour_frame, "LAB: %0.1f, %0.1f" %LAB, (cx-20, cy-50), font, 0.5, (0,0,0), thickness=2)
                 cv2.drawContours(contour_frame,[box],0,font_color,2)
@@ -474,17 +475,17 @@ class Camera():
         if self.calibrated:
             #Grid Mask
             cv2.rectangle(mask, self.gridUL, self.gridLR, 255, cv2.FILLED)
-            #cv2.rectangle(self.VideoFrame,self.gridUL, self.gridLR, (255, 0, 0), 2)
+            cv2.rectangle(self.VideoFrame,self.gridUL, self.gridLR, (255, 0, 0), 2)
 
             #Bar Masks
             cv2.rectangle(mask, tuple(self.bar_location[0,:]), tuple(self.bar_location[1,:]), 0, cv2.FILLED)
             cv2.rectangle(mask, tuple(self.bar_location[2,:]), tuple(self.bar_location[3,:]), 0, cv2.FILLED)
-            #cv2.rectangle(self.VideoFrame,tuple(self.bar_location[0,:]), tuple(self.bar_location[1,:]), (255, 0, 0), 2)
-            #cv2.rectangle(self.VideoFrame,tuple(self.bar_location[2,:]), tuple(self.bar_location[3,:]), (255, 0, 0), 2)
+            cv2.rectangle(self.VideoFrame,tuple(self.bar_location[0,:]), tuple(self.bar_location[1,:]), (255, 0, 0), 2)
+            cv2.rectangle(self.VideoFrame,tuple(self.bar_location[2,:]), tuple(self.bar_location[3,:]), (255, 0, 0), 2)
 
             #Robot Masks
             cv2.rectangle(mask, tuple(self.robot_sleep_loc[0,:]), tuple(self.robot_sleep_loc[1,:]), 0, cv2.FILLED)
-            #cv2.rectangle(self.VideoFrame,tuple(self.robot_sleep_loc[0,:]), tuple(self.robot_sleep_loc[1,:]), (255, 0, 0), 2)
+            cv2.rectangle(self.VideoFrame,tuple(self.robot_sleep_loc[0,:]), tuple(self.robot_sleep_loc[1,:]), (255, 0, 0), 2)
 
             self.thresh = cv2.bitwise_and(cv2.inRange(self.DepthFrameProcessed, lower, upper), mask)
 
@@ -575,6 +576,8 @@ class ImageListener:
         if self.camera.detect:
             self.camera.detectBlocksInDepthImage()
             self.camera.blockDetector()
+            #cv2.imwrite("Masks.png", self.camera.VideoFrame)
+
 
 class TagImageListener:
     def __init__(self, topic, camera):
