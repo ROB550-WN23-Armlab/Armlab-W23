@@ -1,0 +1,41 @@
+Rob: Make sure to check for first person
+Check commas and indents
+
+Rob: State machine to methodology, not results
+	
+Aaron: Servo waypoint controller 
+Aaron: Depth calibration
+
+Rob: Add weight compensation
+
+	
+Aaeon: Discuss different methods for rectification and say which one was chosen, with justification in results
+~: Separate results into sections
+Aaron: Thresholding values
+
+Shashank: IK picture in section
+
+
+Aaron: Calibration Verification for rectification and depth correction
+	Include generated matrices
+Rob: FK verification
+Aaron (Rob Plots block heatmap): Block detection verification
+Shashank: Teach and Repeat (Controller, FK)
+Rob: Competition highlighting which legs verify which of the four methods
+     (Calibration, feature extraction, IK, FK)
+	Place blocks sideways
+
+
+Shashank: Discussion for improvements
+	Rob and aaron write ideas
+	Sag
+	Force feedback
+	Better more consistent grasping location
+	Grasp correction for out of dexterous workspace blocks
+
+
+
+
+
+SPLITTING IT UP 
+---------------

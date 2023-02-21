@@ -94,8 +94,8 @@ class Gui(QMainWindow):
         self.ui.btnUser1.clicked.connect(partial(nxt_if_arm_init, 'calibrate'))
         # self.ui.btnUser2.setText('Open Gripper')
         # self.ui.btnUser2.clicked.connect(lambda: self.rxarm.open_gripper())
-        # self.ui.btnUser3.setText('Close Gripper')
-        # self.ui.btnUser3.clicked.connect(lambda: self.rxarm.close_gripper())
+        self.ui.btnUser3.setText('Close Gripper')
+        self.ui.btnUser3.clicked.connect(lambda: self.rxarm.close_gripper())
         self.ui.btnUser4.setText('Execute')
         self.ui.btnUser4.clicked.connect(partial(nxt_if_arm_init, 'execute'))        
         
@@ -117,14 +117,14 @@ class Gui(QMainWindow):
         # self.ui.btnUser2.setText('Click and Place')
         # self.ui.btnUser2.clicked.connect(partial(nxt_if_arm_init, 'click_place'))
 
-        self.ui.btnUser3.setText('Zero Depth Frame')
-        self.ui.btnUser3.clicked.connect(partial(nxt_if_arm_init, 'zero_depth'))
+        # self.ui.btnUser3.setText('Zero Depth Frame')
+        # self.ui.btnUser3.clicked.connect(partial(nxt_if_arm_init, 'zero_depth'))
 
         # self.ui.btnUser8.setText('Slow Calibrate')
         # self.ui.btnUser8.clicked.connect(partial(nxt_if_arm_init, 'calibrate_slow'))
 
-        self.ui.btnUser4.setText('Detect Block')
-        self.ui.btnUser4.clicked.connect(partial(nxt_if_arm_init, 'detect'))
+        # self.ui.btnUser4.setText('Detect Block')
+        # self.ui.btnUser4.clicked.connect(partial(nxt_if_arm_init, 'detect'))
 
         # self.ui.btnUser5.setText('Event 1')
         # self.ui.btnUser5.clicked.connect(partial(nxt_if_arm_init, 'event1'))

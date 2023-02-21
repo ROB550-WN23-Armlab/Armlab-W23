@@ -283,10 +283,9 @@ class StateMachine():
         joint_errors = np.array(self.waypoints[self.current_waypoint]) - np.array(self.rxarm.get_positions())
         self.err = np.sqrt(np.mean(joint_errors**2))
 
-        self.rxarm.set_moving_time(1.7)
+        self.rxarm.set_moving_time(1.5)
         #Waypoint checking and actuation
         if (self.err < self.thresh) or (self.current_waypoint == 0) or (self.long_time):
-            # print(get_pose_from_T(FK_dh(self.rxarm.dh_params, self.waypoints[self.current_waypoint], 5)))            
             self.rxarm.set_positions(self.waypoints[self.current_waypoint])
             self.rxarm.set_gripper_pressure(self.waypoint_grip[self.current_waypoint])
             self.actuate_gripper((self.waypoint_grip[self.current_waypoint]>0))
@@ -296,7 +295,22 @@ class StateMachine():
         else:
             if (time.time() - self.zTime >self.rxarm.moving_time):
                 self.long_time = 1
+                #Record data    
+        if (time.time() - self.zTime >0.05):                
+                self.now = time.time()
+                pos = self.rxarm.get_positions().tolist()
+                pos.append((self.waypoint_grip[self.current_waypoint])) #pos = [q1,q2,q3,q4,q5,grip_state]
+                file1 = open("JointData.txt","a")
+                file1.write(str(self.now - self.start_exe) + ", " + str(pos))
+                file1.write('\n')
+                file1.close()
 
+                file2 = open("Data.txt","a")
+                pos = get_pose_from_T(FK_dh(self.rxarm.dh_params, pos, 5))                
+                x,y,z = pos[0], pos[1], pos[2]
+                file2.write(str(self.now - self.start_exe) + ", "  + str(x) + ', ' + str(y) + ', ' + str(z))
+                file2.write('\n')
+                file2.close()
         #Check if all waypoints have been passed through
         if self.current_waypoint == len(self.waypoints):
             self.current_waypoint = 0
@@ -387,6 +401,7 @@ class StateMachine():
 
         self.camera.homography = cv2.findHomography(src_pts, dest_pts)[0]
 
+        print(self.camera.extrinsic_matrix)
         #Saving positions for block detection masking
         self.camera.gridUL = tuple(corner_coords_pixel[2,:].astype(int))
         self.camera.gridLR = tuple(corner_coords_pixel[0,:].astype(int))
@@ -462,7 +477,7 @@ class StateMachine():
         self.current_state = "clear_waypoints"
         self.waypoints = []
         self.waypoint_grip = []
-        self.current_waypoint = -1
+        self.current_waypoint = 0
         self.err = 0
         self.next_state = "idle"
 
@@ -597,6 +612,8 @@ class StateMachine():
             dest_pts = np.array([[1280,720], [1280,0], [0,0], [0,720]])
 
             self.camera.homography = cv2.findHomography(src_pts, dest_pts)[0]
+
+            print(self.camera.homography)
 
             #Saving positions for block detection masking
             self.camera.gridUL = tuple(corner_coords_pixel[2,:].astype(int))
@@ -980,8 +997,6 @@ class StateMachine():
             else:
                 self.next_state = 'executeAndReturn'   
 
-
-    
     def bonus(self):
         print("STARTING BONUS")
         self.current_state = 'bonus'
